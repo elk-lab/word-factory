@@ -20,6 +20,7 @@ function loadEnvFile(filePath) {
 
 loadEnvFile(path.join(__dirname, ".env"));
 
+const APP_VERSION = "1.2.0";
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const DICT_FILE = path.join(__dirname, "data", "words_en_us.txt");
@@ -27,6 +28,7 @@ const GRID_SIZE = 5;
 const DEFAULT_ROUND_SECONDS = 60;
 const DEFAULT_MAX_PLAYERS = 8;
 const DEFAULT_MIN_WORD_LENGTH = 3;
+const DEFAULT_TOTAL_ROUNDS = 3;
 const MIN_PLAYERS = 2;
 const MIN_ROUND_SECONDS = 15;
 const MAX_ROUND_SECONDS = 300;
@@ -34,7 +36,9 @@ const MIN_MAX_PLAYERS = 2;
 const MAX_MAX_PLAYERS = 20;
 const MIN_MIN_WORD_LENGTH = 2;
 const MAX_MIN_WORD_LENGTH = 10;
-const ALPHABET = "EEEEEEEEEEEEAAAAAAAIIIIIIIOOOOOONNNNNNRRRRRRTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ";
+const MIN_TOTAL_ROUNDS = 1;
+const MAX_TOTAL_ROUNDS = 20;
+const LETTER_BAG = "EEEEEEEEEEEEAAAAAAAIIIIIIIOOOOOONNNNNNRRRRRRTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXZ";
 const WEBSTER_API_KEY = process.env.WEBSTER_API_KEY || "";
 const WEBSTER_TIMEOUT_MS = 1500;
 
@@ -74,10 +78,16 @@ function sessionToken() {
   return crypto.randomBytes(24).toString("hex");
 }
 
+function randomLetter() {
+  return LETTER_BAG[Math.floor(Math.random() * LETTER_BAG.length)];
+}
+
+function randomTile() {
+  return Math.random() < 0.045 ? "QU" : randomLetter();
+}
+
 function createGrid(size = GRID_SIZE) {
-  return Array.from({ length: size }, () =>
-    Array.from({ length: size }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)])
-  );
+  return Array.from({ length: size }, () => Array.from({ length: size }, () => randomTile()));
 }
 
 function cleanWord(word) {
@@ -105,8 +115,10 @@ function canTraceWordOnGrid(word, grid) {
   const visited = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(false));
 
   function dfs(r, c, idx) {
-    if (grid[r][c] !== word[idx]) return false;
-    if (idx === word.length - 1) return true;
+    const tile = grid[r][c];
+    if (!word.startsWith(tile, idx)) return false;
+    const nextIdx = idx + tile.length;
+    if (nextIdx === word.length) return true;
 
     visited[r][c] = true;
     for (let dr = -1; dr <= 1; dr += 1) {
@@ -116,7 +128,7 @@ function canTraceWordOnGrid(word, grid) {
         const nc = c + dc;
         if (nr < 0 || nc < 0 || nr >= GRID_SIZE || nc >= GRID_SIZE) continue;
         if (visited[nr][nc]) continue;
-        if (dfs(nr, nc, idx + 1)) {
+        if (dfs(nr, nc, nextIdx)) {
           visited[r][c] = false;
           return true;
         }
@@ -128,7 +140,7 @@ function canTraceWordOnGrid(word, grid) {
 
   for (let r = 0; r < GRID_SIZE; r += 1) {
     for (let c = 0; c < GRID_SIZE; c += 1) {
-      if (grid[r][c] === word[0] && dfs(r, c, 0)) return true;
+      if (dfs(r, c, 0)) return true;
     }
   }
   return false;
@@ -198,13 +210,21 @@ function roomSnapshot(room) {
   const now = Date.now();
   const remaining = room.round.active ? Math.max(0, Math.ceil((room.round.endsAt - now) / 1000)) : 0;
   return {
+    app: { version: APP_VERSION, ownerLabel: "word factory by elk-lab-jzion" },
     roomId: room.id,
     hostId: room.hostId,
     settings: {
       roundSeconds: room.settings.roundSeconds,
       maxPlayers: room.settings.maxPlayers,
       minWordLength: room.settings.minWordLength,
+      totalRounds: room.settings.totalRounds,
       minPlayers: MIN_PLAYERS,
+    },
+    match: {
+      currentRound: room.match.currentRound,
+      completedRounds: room.match.completedRounds,
+      totalRounds: room.settings.totalRounds,
+      over: room.match.over,
     },
     players: room.players.map((p) => ({
       id: p.id,
@@ -290,17 +310,25 @@ function emitRoom(room) {
   for (const res of subs) res.write(payload);
 }
 
+function endRound(room) {
+  room.round.active = false;
+  room.round.endsAt = 0;
+  room.round.lastResults = room.round.wordLog.slice(-30);
+  room.match.completedRounds += 1;
+  if (room.match.completedRounds >= room.settings.totalRounds) {
+    room.match.over = true;
+  }
+  for (const p of room.players) {
+    if (p.id !== room.hostId) p.ready = false;
+  }
+}
+
 function ensureTimer(room) {
   if (room.interval) return;
   room.interval = setInterval(() => {
     if (!room.round.active) return;
     if (Date.now() >= room.round.endsAt) {
-      room.round.active = false;
-      room.round.endsAt = 0;
-      room.round.lastResults = room.round.wordLog.slice(-30);
-      for (const p of room.players) {
-        if (p.id !== room.hostId) p.ready = false;
-      }
+      endRound(room);
       emitRoom(room);
     } else {
       emitRoom(room);
@@ -320,6 +348,12 @@ function createRoom(name) {
       roundSeconds: DEFAULT_ROUND_SECONDS,
       maxPlayers: DEFAULT_MAX_PLAYERS,
       minWordLength: DEFAULT_MIN_WORD_LENGTH,
+      totalRounds: DEFAULT_TOTAL_ROUNDS,
+    },
+    match: {
+      currentRound: 0,
+      completedRounds: 0,
+      over: false,
     },
     players: [{ id: hostPid, token: hostToken, name: name || "Host", score: 0, ready: true }],
     round: {
@@ -380,6 +414,7 @@ async function routeApi(req, res, url) {
 
   if (req.method === "GET" && url.pathname === "/api/meta") {
     return sendJson(res, 200, {
+      app: { version: APP_VERSION, ownerLabel: "word factory by elk-lab-jzion" },
       dictionary: {
         enabled: dictionary.size > 0 || Boolean(WEBSTER_API_KEY),
         locale: "en-US",
@@ -391,6 +426,7 @@ async function routeApi(req, res, url) {
         board: `${GRID_SIZE}x${GRID_SIZE}`,
         adjacency: true,
         tileReusePerWord: false,
+        includesQuTile: true,
         scoring: "3-4=1, 5=2, 6=3, 7=5, 8+=11",
       },
       offlineReady: true,
@@ -452,6 +488,7 @@ async function routeApi(req, res, url) {
     if (!room) return sendJson(res, 404, { error: "Room not found" });
     if (!name) return sendJson(res, 400, { error: "Name is required" });
     if (room.round.active) return sendJson(res, 400, { error: "Cannot join while a round is active" });
+    if (room.match.over) return sendJson(res, 400, { error: "Match has ended" });
     if (room.players.length >= room.settings.maxPlayers) return sendJson(res, 400, { error: "Room is full" });
 
     const pid = playerId();
@@ -472,6 +509,7 @@ async function routeApi(req, res, url) {
     if (!player) return sendJson(res, 403, { error: "Unauthorized" });
     if (room.hostId !== player.id) return sendJson(res, 403, { error: "Only host can change settings" });
     if (room.round.active) return sendJson(res, 400, { error: "Cannot change settings during an active round" });
+    if (room.match.currentRound > 0) return sendJson(res, 400, { error: "Settings lock after match starts" });
 
     const nextRoundSeconds = clampInt(
       body.roundSeconds,
@@ -486,6 +524,12 @@ async function routeApi(req, res, url) {
       MAX_MIN_WORD_LENGTH,
       room.settings.minWordLength
     );
+    const nextTotalRounds = clampInt(
+      body.totalRounds,
+      MIN_TOTAL_ROUNDS,
+      MAX_TOTAL_ROUNDS,
+      room.settings.totalRounds
+    );
 
     if (room.players.length > nextMaxPlayers) {
       return sendJson(res, 400, { error: "Max players cannot be below current player count" });
@@ -494,6 +538,7 @@ async function routeApi(req, res, url) {
     room.settings.roundSeconds = nextRoundSeconds;
     room.settings.maxPlayers = nextMaxPlayers;
     room.settings.minWordLength = nextMinWordLength;
+    room.settings.totalRounds = nextTotalRounds;
 
     emitRoom(room);
     return sendJson(res, 200, { ok: true, state: roomSnapshot(room) });
@@ -509,6 +554,7 @@ async function routeApi(req, res, url) {
     const player = requirePlayer(room, pid, token);
     if (!player) return sendJson(res, 403, { error: "Unauthorized" });
     if (room.round.active) return sendJson(res, 400, { error: "Round already active" });
+    if (room.match.over) return sendJson(res, 400, { error: "Match has ended" });
     if (player.id === room.hostId) return sendJson(res, 400, { error: "Host is always ready" });
 
     player.ready = Boolean(body.ready);
@@ -528,8 +574,10 @@ async function routeApi(req, res, url) {
     if (room.hostId !== player.id) return sendJson(res, 403, { error: "Only host can start round" });
     if (room.players.length < MIN_PLAYERS) return sendJson(res, 400, { error: `Need at least ${MIN_PLAYERS} players` });
     if (!allMembersReady(room)) return sendJson(res, 400, { error: "All non-host members must be ready" });
+    if (room.match.over) return sendJson(res, 400, { error: "Match has ended" });
 
     room.round.active = true;
+    room.match.currentRound = room.match.completedRounds + 1;
     room.round.grid = createGrid();
     room.round.endsAt = Date.now() + room.settings.roundSeconds * 1000;
     room.round.usedWords.clear();
@@ -556,7 +604,7 @@ async function routeApi(req, res, url) {
       return sendJson(res, 400, { error: "Word path is invalid for this 5x5 board" });
     }
     if (!(await isValidUsEnglishWord(word))) return sendJson(res, 400, { error: "Not a valid US English word" });
-    if (room.round.usedWords.has(word)) return sendJson(res, 400, { error: "Word already used" });
+    if (room.round.usedWords.has(word)) return sendJson(res, 400, { error: "Word already used this round" });
 
     const points = scoreWord(word);
     room.round.usedWords.add(word);
@@ -581,6 +629,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Word Factory running on http://localhost:${PORT}`);
+  console.log(`Version: ${APP_VERSION}`);
   console.log(`Local dictionary loaded: ${dictionary.size} words`);
   console.log(`Webster fallback enabled: ${Boolean(WEBSTER_API_KEY)}`);
 });

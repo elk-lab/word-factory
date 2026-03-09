@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Word Factory Multiplayer</title>
+  <title>Word Factory</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <main class="app-shell">
     <section class="card" id="authCard">
       <h1>Word Factory</h1>
-      <p class="muted">5x5 board mode: build words using adjacent tiles (no tile reuse in one word).</p>
+      <p class="muted">5x5 board mode: adjacent tiles only, no tile reuse per word.</p>
       <div class="grid">
         <label>
           Your name
@@ -32,7 +32,7 @@
       <div class="topline">
         <div>
           <h2>Room <span id="roomCode"></span></h2>
-          <p class="muted">5x5 board | Adjacent letters only | No tile reuse per word</p>
+          <p class="muted">Round <span id="roundBadge">0/0</span></p>
         </div>
         <div id="timer" class="timer">00</div>
       </div>
@@ -60,14 +60,23 @@
           Min word letters
           <input id="minWordConfig" type="number" min="2" max="10" step="1" />
         </label>
+        <label>
+          Total rounds
+          <input id="totalRoundsConfig" type="number" min="1" max="20" step="1" />
+        </label>
         <button id="saveSettingsBtn">Save Settings</button>
         <button id="readyBtn" class="ghost">Ready</button>
+        <button id="mechanicsBtn" class="ghost">Game Mechanics</button>
       </div>
 
-      <div id="board" class="board"></div>
+      <div class="board-wrap" id="boardWrap">
+        <svg id="pathSvg" class="path-svg"></svg>
+        <div id="board" class="board"></div>
+      </div>
 
       <form id="wordForm" class="row">
-        <input id="wordInput" placeholder="Type a word from the board" autocomplete="off" />
+        <input id="wordInput" placeholder="Type or click tiles" autocomplete="off" />
+        <button id="clearPathBtn" class="ghost" type="button">Clear Path</button>
         <button id="submitWordBtn" type="submit">Submit</button>
       </form>
 
@@ -86,12 +95,31 @@
           <ul id="leaderboard"></ul>
         </div>
         <div>
-          <h3>Words Used</h3>
+          <h3>Words Used (Round)</h3>
           <ul id="wordsUsed"></ul>
         </div>
       </div>
     </section>
   </main>
+
+  <dialog id="mechanicsDialog">
+    <h3>Word Factory Mechanics</h3>
+    <ul>
+      <li>Board is 5x5, including occasional Qu tiles.</li>
+      <li>Build words using adjacent tiles (8 directions).</li>
+      <li>You cannot reuse the same tile in one word.</li>
+      <li>Words are validated with US English dictionary rules.</li>
+      <li>Words used reset every new round.</li>
+      <li>Scoring: 3-4 letters = 1, 5 = 2, 6 = 3, 7 = 5, 8+ = 11.</li>
+    </ul>
+    <form method="dialog" class="row">
+      <button>Close</button>
+    </form>
+  </dialog>
+
+  <div id="ownerLabel" class="owner-label">word factory by elk-lab-jzion</div>
+  <div id="versionLabel" class="version-label">v1.2.0</div>
+
   <script src="/app.js"></script>
 </body>
 </html>
