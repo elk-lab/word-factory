@@ -47,7 +47,6 @@ const ui = {
   leaderboard: $("leaderboard"),
   wordsUsed: $("wordsUsed"),
   ownerLabel: $("ownerLabel"),
-  versionLabel: $("versionLabel"),
 };
 
 const params = new URLSearchParams(location.search);
@@ -179,8 +178,7 @@ function hydrateRoom(room) {
   ui.roomCode.textContent = room.roomId;
   ui.roundBadge.textContent = `${room.match.currentRound || room.match.completedRounds}/${room.match.totalRounds}`;
 
-  ui.ownerLabel.textContent = room.app?.ownerLabel || "word factory by elk-lab-jzion";
-  ui.versionLabel.textContent = `v${room.app?.version || "1.2.0"}`;
+  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.2.0";
 
   const link = `${location.origin}?room=${encodeURIComponent(room.roomId)}`;
   ui.inviteLink.value = link;
@@ -410,3 +408,5 @@ ui.shareBtn.addEventListener("click", async () => {
     ui.status.textContent = "Share cancelled";
   }
 });
+
+

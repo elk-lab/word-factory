@@ -210,7 +210,7 @@ function roomSnapshot(room) {
   const now = Date.now();
   const remaining = room.round.active ? Math.max(0, Math.ceil((room.round.endsAt - now) / 1000)) : 0;
   return {
-    app: { version: APP_VERSION, ownerLabel: "word factory by elk-lab-jzion" },
+    app: { version: APP_VERSION, attribution: "attribution: elk-lab-jzion | v1.2.0" },
     roomId: room.id,
     hostId: room.hostId,
     settings: {
@@ -414,7 +414,7 @@ async function routeApi(req, res, url) {
 
   if (req.method === "GET" && url.pathname === "/api/meta") {
     return sendJson(res, 200, {
-      app: { version: APP_VERSION, ownerLabel: "word factory by elk-lab-jzion" },
+      app: { version: APP_VERSION, attribution: "attribution: elk-lab-jzion | v1.2.0" },
       dictionary: {
         enabled: dictionary.size > 0 || Boolean(WEBSTER_API_KEY),
         locale: "en-US",
@@ -633,3 +633,4 @@ server.listen(PORT, () => {
   console.log(`Local dictionary loaded: ${dictionary.size} words`);
   console.log(`Webster fallback enabled: ${Boolean(WEBSTER_API_KEY)}`);
 });
+
