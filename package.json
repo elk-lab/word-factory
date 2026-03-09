@@ -1,0 +1,15 @@
+﻿{
+  "name": "word-factory-game",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Responsive multiplayer Word Factory game with timer, auto-scoring, leaderboard, and QR invites",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dict:import": "powershell -ExecutionPolicy Bypass -File scripts/import-dictionary.ps1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

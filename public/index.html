@@ -1,0 +1,97 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Word Factory Multiplayer</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="card" id="authCard">
+      <h1>Word Factory</h1>
+      <p class="muted">Create words from round letters before time runs out.</p>
+      <div class="grid">
+        <label>
+          Your name
+          <input id="nameInput" maxlength="24" placeholder="Player name" />
+        </label>
+        <label>
+          Room code
+          <input id="roomInput" maxlength="6" placeholder="Enter code to join" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="createBtn">Create Room</button>
+        <button id="joinBtn" class="ghost">Join Room</button>
+      </div>
+      <p id="authError" class="error"></p>
+    </section>
+
+    <section class="card hidden" id="gameCard">
+      <div class="topline">
+        <div>
+          <h2>Room <span id="roomCode"></span></h2>
+          <p class="muted">Invite via link, room code, or QR code</p>
+        </div>
+        <div id="timer" class="timer">00</div>
+      </div>
+
+      <div class="invite-wrap">
+        <input id="inviteLink" readonly />
+        <button id="copyLinkBtn" class="ghost">Copy Link</button>
+        <button id="shareBtn" class="ghost">Share</button>
+      </div>
+
+      <div class="qr-wrap">
+        <img id="qrImage" alt="Invite QR code" />
+      </div>
+
+      <div class="config-grid">
+        <label>
+          Round timer (seconds)
+          <input id="timerConfig" type="number" min="15" max="300" step="5" />
+        </label>
+        <label>
+          Max players
+          <input id="maxPlayersConfig" type="number" min="2" max="20" step="1" />
+        </label>
+        <label>
+          Min word letters
+          <input id="minWordConfig" type="number" min="2" max="10" step="1" />
+        </label>
+        <button id="saveSettingsBtn">Save Settings</button>
+        <button id="readyBtn" class="ghost">Ready</button>
+      </div>
+
+      <div id="letters" class="letters">- - - - - - -</div>
+
+      <form id="wordForm" class="row">
+        <input id="wordInput" placeholder="Type a word" autocomplete="off" />
+        <button id="submitWordBtn" type="submit">Submit</button>
+      </form>
+
+      <div class="row controls">
+        <button id="startBtn">Start Round</button>
+        <span id="status" class="muted"></span>
+      </div>
+
+      <div class="boards">
+        <div>
+          <h3>Players</h3>
+          <ul id="playersList"></ul>
+        </div>
+        <div>
+          <h3>Leaderboard</h3>
+          <ul id="leaderboard"></ul>
+        </div>
+        <div>
+          <h3>Words Used</h3>
+          <ul id="wordsUsed"></ul>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
