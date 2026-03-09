@@ -10,7 +10,7 @@
   <main class="app-shell">
     <section class="card" id="authCard">
       <h1>Word Factory</h1>
-      <p class="muted">Create words from round letters before time runs out.</p>
+      <p class="muted">5x5 board mode: build words using adjacent tiles (no tile reuse in one word).</p>
       <div class="grid">
         <label>
           Your name
@@ -32,7 +32,7 @@
       <div class="topline">
         <div>
           <h2>Room <span id="roomCode"></span></h2>
-          <p class="muted">Invite via link, room code, or QR code</p>
+          <p class="muted">5x5 board | Adjacent letters only | No tile reuse per word</p>
         </div>
         <div id="timer" class="timer">00</div>
       </div>
@@ -64,10 +64,10 @@
         <button id="readyBtn" class="ghost">Ready</button>
       </div>
 
-      <div id="letters" class="letters">- - - - - - -</div>
+      <div id="board" class="board"></div>
 
       <form id="wordForm" class="row">
-        <input id="wordInput" placeholder="Type a word" autocomplete="off" />
+        <input id="wordInput" placeholder="Type a word from the board" autocomplete="off" />
         <button id="submitWordBtn" type="submit">Submit</button>
       </form>
 

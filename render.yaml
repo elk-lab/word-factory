@@ -1,0 +1,15 @@
+﻿services:
+  - type: web
+    name: word-factory-game
+    runtime: node
+    plan: free
+    autoDeploy: true
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: PORT
+        value: 3000
+      - key: WEBSTER_API_KEY
+        sync: false

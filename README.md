@@ -78,3 +78,12 @@ For cloud deployment also use:
 - `public/` - frontend UI
 - `data/` - local dictionary file
 - `scripts/` - dictionary import utility
+
+## Deploy on Render
+1. Push this repo to GitHub.
+2. In Render dashboard: New + -> Blueprint.
+3. Select this repository (Render detects `render.yaml`).
+4. In environment variables, set `WEBSTER_API_KEY` only if you want Webster fallback.
+5. Deploy.
+
+Render URL will be available after first successful deploy.

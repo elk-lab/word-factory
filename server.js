@@ -23,6 +23,7 @@ loadEnvFile(path.join(__dirname, ".env"));
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const DICT_FILE = path.join(__dirname, "data", "words_en_us.txt");
+const GRID_SIZE = 5;
 const DEFAULT_ROUND_SECONDS = 60;
 const DEFAULT_MAX_PLAYERS = 8;
 const DEFAULT_MIN_WORD_LENGTH = 3;
@@ -73,10 +74,10 @@ function sessionToken() {
   return crypto.randomBytes(24).toString("hex");
 }
 
-function createLetters(len = 7) {
-  let out = "";
-  for (let i = 0; i < len; i += 1) out += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
-  return out;
+function createGrid(size = GRID_SIZE) {
+  return Array.from({ length: size }, () =>
+    Array.from({ length: size }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)])
+  );
 }
 
 function cleanWord(word) {
@@ -99,22 +100,48 @@ function clampInt(value, min, max, fallback) {
   return num;
 }
 
-function canBuildWord(word, letters) {
-  const pool = {};
-  for (const ch of letters) pool[ch] = (pool[ch] || 0) + 1;
-  for (const ch of word) {
-    if (!pool[ch]) return false;
-    pool[ch] -= 1;
+function canTraceWordOnGrid(word, grid) {
+  if (!Array.isArray(grid) || grid.length !== GRID_SIZE || !word) return false;
+  const visited = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(false));
+
+  function dfs(r, c, idx) {
+    if (grid[r][c] !== word[idx]) return false;
+    if (idx === word.length - 1) return true;
+
+    visited[r][c] = true;
+    for (let dr = -1; dr <= 1; dr += 1) {
+      for (let dc = -1; dc <= 1; dc += 1) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = r + dr;
+        const nc = c + dc;
+        if (nr < 0 || nc < 0 || nr >= GRID_SIZE || nc >= GRID_SIZE) continue;
+        if (visited[nr][nc]) continue;
+        if (dfs(nr, nc, idx + 1)) {
+          visited[r][c] = false;
+          return true;
+        }
+      }
+    }
+    visited[r][c] = false;
+    return false;
   }
-  return true;
+
+  for (let r = 0; r < GRID_SIZE; r += 1) {
+    for (let c = 0; c < GRID_SIZE; c += 1) {
+      if (grid[r][c] === word[0] && dfs(r, c, 0)) return true;
+    }
+  }
+  return false;
 }
 
 function scoreWord(word) {
   const len = word.length;
-  if (len <= 2) return 0;
-  if (len <= 4) return len;
-  if (len <= 6) return len + 2;
-  return len + 5;
+  if (len < 3) return 0;
+  if (len <= 4) return 1;
+  if (len === 5) return 2;
+  if (len === 6) return 3;
+  if (len === 7) return 5;
+  return 11;
 }
 
 async function isValidUsEnglishWord(word) {
@@ -188,7 +215,8 @@ function roomSnapshot(room) {
     })),
     round: {
       active: room.round.active,
-      letters: room.round.letters,
+      gridSize: GRID_SIZE,
+      grid: room.round.grid,
       endsAt: room.round.endsAt,
       remaining,
       usedWords: Array.from(room.round.usedWords),
@@ -296,7 +324,7 @@ function createRoom(name) {
     players: [{ id: hostPid, token: hostToken, name: name || "Host", score: 0, ready: true }],
     round: {
       active: false,
-      letters: "",
+      grid: [],
       endsAt: 0,
       usedWords: new Set(),
       wordLog: [],
@@ -359,8 +387,13 @@ async function routeApi(req, res, url) {
         source: "data/words_en_us.txt",
         websterEnabled: Boolean(WEBSTER_API_KEY),
       },
+      gameplay: {
+        board: `${GRID_SIZE}x${GRID_SIZE}`,
+        adjacency: true,
+        tileReusePerWord: false,
+        scoring: "3-4=1, 5=2, 6=3, 7=5, 8+=11",
+      },
       offlineReady: true,
-      qrNote: "QR image requires internet in current implementation.",
       security: {
         tokenAuth: true,
         rateLimited: true,
@@ -497,7 +530,7 @@ async function routeApi(req, res, url) {
     if (!allMembersReady(room)) return sendJson(res, 400, { error: "All non-host members must be ready" });
 
     room.round.active = true;
-    room.round.letters = createLetters(7);
+    room.round.grid = createGrid();
     room.round.endsAt = Date.now() + room.settings.roundSeconds * 1000;
     room.round.usedWords.clear();
     room.round.wordLog = [];
@@ -519,7 +552,9 @@ async function routeApi(req, res, url) {
     const word = cleanWord(body.word);
     const minLetters = room.settings.minWordLength || DEFAULT_MIN_WORD_LENGTH;
     if (word.length < minLetters) return sendJson(res, 400, { error: `Word must be ${minLetters}+ letters` });
-    if (!canBuildWord(word, room.round.letters)) return sendJson(res, 400, { error: "Word cannot be made from letters" });
+    if (!canTraceWordOnGrid(word, room.round.grid)) {
+      return sendJson(res, 400, { error: "Word path is invalid for this 5x5 board" });
+    }
     if (!(await isValidUsEnglishWord(word))) return sendJson(res, 400, { error: "Not a valid US English word" });
     if (room.round.usedWords.has(word)) return sendJson(res, 400, { error: "Word already used" });
 
@@ -549,4 +584,3 @@ server.listen(PORT, () => {
   console.log(`Local dictionary loaded: ${dictionary.size} words`);
   console.log(`Webster fallback enabled: ${Boolean(WEBSTER_API_KEY)}`);
 });
-

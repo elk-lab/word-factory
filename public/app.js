@@ -29,7 +29,7 @@ const ui = {
   minWordConfig: $("minWordConfig"),
   saveSettingsBtn: $("saveSettingsBtn"),
   readyBtn: $("readyBtn"),
-  letters: $("letters"),
+  board: $("board"),
   wordForm: $("wordForm"),
   wordInput: $("wordInput"),
   submitWordBtn: $("submitWordBtn"),
@@ -68,6 +68,17 @@ async function api(path, payload) {
   return data;
 }
 
+function renderBoard(grid) {
+  if (!Array.isArray(grid) || !grid.length) {
+    ui.board.innerHTML = "";
+    return;
+  }
+  ui.board.innerHTML = grid
+    .flat()
+    .map((ch) => `<div class="tile">${ch}</div>`)
+    .join("");
+}
+
 function hydrateRoom(room) {
   state.room = room;
   ui.roomCode.textContent = room.roomId;
@@ -83,7 +94,7 @@ function hydrateRoom(room) {
   ui.minWordConfig.value = room.settings?.minWordLength || 3;
 
   ui.timer.textContent = String(room.round.remaining || room.settings.roundSeconds || 0).padStart(2, "0");
-  ui.letters.textContent = room.round.letters ? room.round.letters.split("").join(" ") : "- - - - - - -";
+  renderBoard(room.round.grid);
 
   ui.playersList.innerHTML = room.players.length
     ? room.players
@@ -111,6 +122,7 @@ function hydrateRoom(room) {
     roundActive ||
     !room.readyGate?.membersReady ||
     room.players.length < (room.settings.minPlayers || 2);
+
   ui.submitWordBtn.disabled = !roundActive;
   ui.wordInput.disabled = !roundActive;
 
@@ -123,7 +135,7 @@ function hydrateRoom(room) {
   ui.readyBtn.textContent = meReady ? "Unready" : "Ready";
 
   if (roundActive) {
-    ui.status.textContent = `Round live. Min word length: ${minLetters}.`;
+    ui.status.textContent = `Round live. Use adjacent tiles only. Min word length: ${minLetters}.`;
   } else if (state.host) {
     const ready = room.readyGate?.membersReady;
     const needPlayers = room.players.length < (room.settings.minPlayers || 2);
@@ -132,7 +144,7 @@ function hydrateRoom(room) {
     } else if (!ready) {
       ui.status.textContent = "Waiting for all non-host players to click Ready.";
     } else {
-      ui.status.textContent = `All players ready. You can start (min word length ${minLetters}).`;
+      ui.status.textContent = `All players ready. You can start (min ${minLetters} letters).`;
     }
   } else {
     ui.status.textContent = meReady
