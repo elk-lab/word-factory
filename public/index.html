@@ -57,18 +57,6 @@
           <aside class="play-side">
             <div class="timer-card">
               <div id="timer" class="timer">00</div>
-              <div class="icon-stack">
-                <button id="rotateBtn" class="icon-btn ghost" type="button" aria-label="Rotate board clockwise" title="Rotate board clockwise">
-                  <span class="icon-wrap">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V1l5 5-5 5V7a5 5 0 105 5h2a7 7 0 11-7-7z"/></svg>
-                  </span>
-                </button>
-                <button id="mechanicsBtn" class="icon-btn ghost" type="button" aria-label="Game mechanics" title="Game mechanics">
-                  <span class="icon-wrap">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
-                  </span>
-                </button>
-              </div>
             </div>
             <div class="qr-wrap">
               <img id="qrImage" alt="Invite QR code" />
@@ -94,16 +82,16 @@
                 <input id="totalRoundsConfig" type="number" min="1" max="20" step="1" />
               </label>
               <button id="saveSettingsBtn" type="button">Save</button>
-              <button id="readyBtn" class="ghost" type="button">Ready</button>
             </div>
 
+            <p id="pathHint" class="path-hint">Tap or drag to build a word</p>
             <div class="board-wrap rotate-0" id="boardWrap">
               <svg id="pathSvg" class="path-svg"></svg>
               <div id="board" class="board"></div>
             </div>
 
             <div id="wordForm" class="row word-row">
-              <div id="pathPreview" class="path-preview" aria-live="polite">Tap or drag to build a word</div>
+              <div id="pathPreview" class="path-preview empty" aria-live="polite">No active path</div>
               <button id="clearPathBtn" class="icon-btn ghost" type="button" aria-label="Clear path" title="Clear path">
                 <span class="icon-wrap">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19L19 6M6 6l13 13"/></svg>
@@ -111,8 +99,14 @@
               </button>
             </div>
 
-            <div class="row controls">
+            <div class="row board-actions">
+              <button id="rotateBtn" class="ghost" type="button">Rotate</button>
+              <button id="mechanicsBtn" class="ghost" type="button">Rules</button>
+              <button id="readyBtn" class="ghost" type="button">Ready</button>
               <button id="startBtn" type="button">Start Round</button>
+            </div>
+
+            <div class="row controls">
               <span id="status" class="muted"></span>
             </div>
           </div>
@@ -167,7 +161,7 @@
       <li>Words must use touching tiles in any direction.</li>
       <li>The same tile cannot be reused in one word.</li>
       <li>Release after tracing to auto-submit the word.</li>
-      <li>Tap the current end tile again to submit a tapped path.</li>
+      <li>Tap the starting tile to clear the path or reverse across tiles to backtrack.</li>
       <li>Words used reset every new round.</li>
       <li>Scoring: 3-4 letters = 1, 5 = 2, 6 = 3, 7 = 5, 8+ = 11.</li>
     </ul>
@@ -181,3 +175,6 @@
   <script src="/app.js"></script>
 </body>
 </html>
+
+
+

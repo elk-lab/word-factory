@@ -98,7 +98,7 @@ function pathWord() {
 
 function renderPathPreview() {
   const text = pathWord();
-  ui.pathPreview.textContent = text || "Tap or drag to build a word";
+  ui.pathPreview.textContent = text || "No active path";
   ui.pathPreview.classList.toggle("empty", !text);
 }
 
@@ -170,6 +170,18 @@ function startPath(r, c) {
   renderPath();
 }
 
+function trimPathTo(index) {
+  if (index <= 0) {
+    clearPath();
+    return true;
+  }
+  state.selectedPath = state.selectedPath.slice(0, index + 1);
+  renderPathPreview();
+  renderSelectedTiles();
+  renderPath();
+  return true;
+}
+
 function addToPath(r, c) {
   const next = { r, c };
   const last = state.selectedPath[state.selectedPath.length - 1];
@@ -177,8 +189,9 @@ function addToPath(r, c) {
     startPath(r, c);
     return true;
   }
-  if (last.r === r && last.c === c) return false;
-  if (state.selectedPath.some((cell) => cell.r === r && cell.c === c)) return false;
+  const existingIndex = state.selectedPath.findIndex((cell) => cell.r === r && cell.c === c);
+  if (existingIndex === state.selectedPath.length - 1) return false;
+  if (existingIndex >= 0) return trimPathTo(existingIndex);
   if (!isAdjacent(last, next)) return false;
   state.selectedPath.push(next);
   renderPathPreview();
@@ -239,15 +252,19 @@ function handleTilePointerDown(event, tile) {
     return;
   }
 
-  if (state.selectedPath.some((cell) => cell.r === r && cell.c === c)) {
+  const existingIndex = state.selectedPath.findIndex((cell) => cell.r === r && cell.c === c);
+  if (existingIndex === 0) {
+    clearPath();
     return;
   }
-
+  if (existingIndex >= 0) {
+    trimPathTo(existingIndex);
+    return;
+  }
   if (!isAdjacent(last, { r, c })) {
     startPath(r, c);
     return;
   }
-
   addToPath(r, c);
 }
 
@@ -306,6 +323,8 @@ function hydrateRoom(room) {
   const roundActive = room.round.active;
   const minLetters = room.settings?.minWordLength || 3;
   const meReady = Boolean(me?.ready);
+
+  document.body.classList.toggle("round-active", roundActive);
 
   ui.roomCode.textContent = room.roomId;
   ui.playerBadge.textContent = me?.name || "Player";

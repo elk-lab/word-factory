@@ -21,6 +21,11 @@ body {
   color: var(--ink);
 }
 
+body.round-active {
+  overflow: hidden;
+  touch-action: none;
+}
+
 .app-shell {
   min-height: 100svh;
   display: grid;
@@ -49,7 +54,7 @@ h1, h2, h3 { margin: 0.2rem 0; }
 
 .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .config-grid {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
   margin-bottom: 0.8rem;
 }
@@ -104,7 +109,6 @@ button:disabled {
 .game-top,
 .room-line,
 .timer-card,
-.icon-stack,
 .tabs {
   display: flex;
   align-items: center;
@@ -179,15 +183,12 @@ button:disabled {
 }
 
 .timer-card {
-  flex-direction: column;
-  gap: 0.5rem;
+  justify-content: center;
   padding: 0.75rem;
   background: #0f1829;
   border: 1px solid var(--line);
   border-radius: 14px;
 }
-
-.icon-stack { gap: 0.45rem; }
 
 .timer {
   font-size: 1.55rem;
@@ -214,6 +215,12 @@ button:disabled {
 }
 
 .board-column { min-width: 0; }
+
+.path-hint {
+  margin: 0 0 0.45rem;
+  color: #bfd0ea;
+  font-size: 0.88rem;
+}
 
 .board-wrap {
   position: relative;
@@ -259,6 +266,10 @@ button:disabled {
   -webkit-user-select: none;
 }
 
+.rotate-1 .tile { transform: rotate(-90deg); }
+.rotate-2 .tile { transform: rotate(-180deg); }
+.rotate-3 .tile { transform: rotate(-270deg); }
+
 .tile.selected {
   background: linear-gradient(180deg, #d2fff4 0%, #7ff5d2 100%);
   border-color: #2dd4b8;
@@ -273,10 +284,7 @@ button:disabled {
   min-height: 42px;
   display: flex;
   align-items: center;
-  padding: 0.6rem 0.75rem;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: #101a2b;
+  padding: 0.35rem 0.1rem;
   color: var(--ink);
   letter-spacing: 0.04em;
 }
@@ -286,7 +294,15 @@ button:disabled {
   letter-spacing: 0;
 }
 
-.controls { margin-top: 0.55rem; }
+.board-actions {
+  justify-content: stretch;
+}
+
+.board-actions button {
+  flex: 1 1 0;
+}
+
+.controls { margin-top: 0.4rem; }
 
 .boards-shell {
   background: #0f1829;
@@ -402,8 +418,7 @@ li:last-child { border-bottom: none; }
   }
 
   .timer-card {
-    flex-direction: row;
-    justify-content: space-between;
+    min-height: 70px;
   }
 
   #qrImage {
@@ -412,11 +427,5 @@ li:last-child { border-bottom: none; }
 
   .tab-btn {
     min-height: 42px;
-  }
-
-  #startBtn,
-  #saveSettingsBtn,
-  #readyBtn {
-    flex: 1 1 auto;
   }
 }
