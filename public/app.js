@@ -203,30 +203,57 @@ function renderSelectedTiles() {
 }
 
 function renderPath() {
-  const boardRect = ui.board.getBoundingClientRect();
-  ui.pathSvg.setAttribute("viewBox", `0 0 ${boardRect.width} ${boardRect.height}`);
+  const boardWidth = ui.board.clientWidth;
+  const boardHeight = ui.board.clientHeight;
+  ui.pathSvg.setAttribute("viewBox", `0 0 ${boardWidth} ${boardHeight}`);
   ui.pathSvg.innerHTML = "";
   if (state.selectedPath.length < 2) return;
+
+  const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+  const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+  marker.setAttribute("id", "pathArrowHead");
+  marker.setAttribute("markerWidth", "8");
+  marker.setAttribute("markerHeight", "8");
+  marker.setAttribute("refX", "6.2");
+  marker.setAttribute("refY", "4");
+  marker.setAttribute("orient", "auto");
+  marker.setAttribute("markerUnits", "userSpaceOnUse");
+  const arrowHead = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  arrowHead.setAttribute("d", "M0,0 L8,4 L0,8 Z");
+  arrowHead.setAttribute("fill", "#46f0cf");
+  arrowHead.setAttribute("opacity", "0.96");
+  marker.appendChild(arrowHead);
+  defs.appendChild(marker);
+  ui.pathSvg.appendChild(defs);
 
   for (let i = 0; i < state.selectedPath.length - 1; i += 1) {
     const a = ui.board.querySelector(`[data-r='${state.selectedPath[i].r}'][data-c='${state.selectedPath[i].c}']`);
     const b = ui.board.querySelector(`[data-r='${state.selectedPath[i + 1].r}'][data-c='${state.selectedPath[i + 1].c}']`);
     if (!a || !b) continue;
-    const ar = a.getBoundingClientRect();
-    const br = b.getBoundingClientRect();
-    const x1 = ar.left + ar.width / 2 - boardRect.left;
-    const y1 = ar.top + ar.height / 2 - boardRect.top;
-    const x2 = br.left + br.width / 2 - boardRect.left;
-    const y2 = br.top + br.height / 2 - boardRect.top;
+    const ax = a.offsetLeft + a.offsetWidth / 2;
+    const ay = a.offsetTop + a.offsetHeight / 2;
+    const bx = b.offsetLeft + b.offsetWidth / 2;
+    const by = b.offsetTop + b.offsetHeight / 2;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const distance = Math.hypot(dx, dy);
+    if (!distance) continue;
+    const startInset = Math.min(a.offsetWidth, a.offsetHeight) * 0.24;
+    const endInset = Math.min(b.offsetWidth, b.offsetHeight) * 0.34;
+    const x1 = ax + (dx / distance) * startInset;
+    const y1 = ay + (dy / distance) * startInset;
+    const x2 = bx - (dx / distance) * endInset;
+    const y2 = by - (dy / distance) * endInset;
     const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
     line.setAttribute("x1", x1);
     line.setAttribute("y1", y1);
     line.setAttribute("x2", x2);
     line.setAttribute("y2", y2);
     line.setAttribute("stroke", "#46f0cf");
-    line.setAttribute("stroke-width", "6");
+    line.setAttribute("stroke-width", "5");
     line.setAttribute("stroke-linecap", "round");
     line.setAttribute("opacity", "0.9");
+    line.setAttribute("marker-end", "url(#pathArrowHead)");
     ui.pathSvg.appendChild(line);
   }
 }
@@ -333,8 +360,7 @@ function applyTileSelection(tile, allowTapSubmit = true) {
     return trimPathTo(existingIndex);
   }
   if (!isAdjacent(last, { r, c })) {
-    startPath(r, c);
-    return true;
+    return false;
   }
   return addToPath(r, c);
 }
@@ -585,7 +611,11 @@ async function finishPointerTrace() {
   state.pointerMoved = false;
   state.pointerSubmitTap = false;
   state.pointerId = null;
-  if (shouldAutoSubmit) await submitCurrentWord();
+  if (shouldAutoSubmit) {
+    await submitCurrentWord();
+    return;
+  }
+  clearPath();
 }
 
 function handlePointerMove(event) {
@@ -613,6 +643,7 @@ function handlePointerCancel(event) {
   state.pointerMoved = false;
   state.pointerSubmitTap = false;
   state.pointerId = null;
+  clearPath();
 }
 
 function handleTouchStart(event) {
@@ -642,20 +673,25 @@ function handleTouchMove(event) {
 function handleTouchEnd(event) {
   if (!isTouchMode() || !state.touchActive) return;
   event.preventDefault();
-  const shouldAutoSubmit = cleanWord(pathWord()).length >= minLettersRequired() && state.touchMoved;
+  const shouldAutoSubmit = cleanWord(pathWord()).length >= minLettersRequired() && (state.touchMoved || state.pointerSubmitTap);
   state.touchActive = false;
   state.touchMoved = false;
+  state.pointerSubmitTap = false;
   if (shouldAutoSubmit) {
     submitCurrentWord().catch((err) => {
       notify(err.message, "error");
     });
+    return;
   }
+  clearPath();
 }
 
 function handleTouchCancel() {
   if (!isTouchMode()) return;
   state.touchActive = false;
   state.touchMoved = false;
+  state.pointerSubmitTap = false;
+  clearPath();
 }
 
 ui.boardWrap.addEventListener("pointermove", handlePointerMove, { passive: false });
