@@ -20,7 +20,7 @@ function loadEnvFile(filePath) {
 
 loadEnvFile(path.join(__dirname, ".env"));
 
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.4.1";
 const APP_ATTRIBUTION = `attribution: elk-lab-jzion | v${APP_VERSION}`;
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -639,8 +639,8 @@ async function routeApi(req, res, url) {
     if (!canTraceWordOnGrid(word, room.round.grid)) {
       return sendJson(res, 400, { error: "Word path is invalid for this 5x5 board" });
     }
-    if (!(await isValidUsEnglishWord(word))) return sendJson(res, 400, { error: "Not a valid US English word" });
-    if (room.round.usedWords.has(word)) return sendJson(res, 400, { error: "Word already used this round" });
+    if (!(await isValidUsEnglishWord(word))) return sendJson(res, 400, { error: "Invalid word" });
+    if (room.round.usedWords.has(word)) return sendJson(res, 400, { error: "Word already found this round" });
 
     const points = scoreWord(word);
     room.round.usedWords.add(word);
@@ -674,3 +674,4 @@ server.listen(PORT, () => {
   console.log(`Local dictionary loaded: ${dictionary.size} words`);
   console.log(`Webster fallback enabled: ${Boolean(WEBSTER_API_KEY)}`);
 });
+

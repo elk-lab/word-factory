@@ -501,6 +501,46 @@ li:last-child {
   color: #fff6a3;
 }
 
+.toast-stack {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  gap: 0.55rem;
+  width: min(320px, calc(100vw - 28px));
+  z-index: 60;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 18, 29, 0.94);
+  color: var(--ink);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.success {
+  border-color: rgba(70, 240, 207, 0.5);
+}
+
+.toast.warning {
+  border-color: rgba(255, 214, 102, 0.5);
+}
+
+.toast.error {
+  border-color: rgba(255, 107, 157, 0.5);
+}
+
 .owner-label {
   position: fixed;
   right: 10px;
@@ -595,6 +635,12 @@ li:last-child {
 
   body.round-staging .boards-shell ul {
     max-height: 24svh;
+  }
+
+  .toast-stack {
+    top: 10px;
+    right: 10px;
+    width: min(280px, calc(100vw - 20px));
   }
 
   .owner-label {

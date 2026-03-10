@@ -55,6 +55,7 @@ const ui = {
   wordsUsed: $("wordsUsed"),
   longestWords: $("longestWords"),
   ownerLabel: $("ownerLabel"),
+  toastStack: $("toastStack"),
   countdownOverlay: $("countdownOverlay"),
   countdownValue: $("countdownValue"),
   tabButtons: Array.from(document.querySelectorAll(".tab-btn")),
@@ -64,15 +65,33 @@ const ui = {
 const params = new URLSearchParams(location.search);
 if (params.get("room")) ui.roomInput.value = params.get("room").toUpperCase();
 
-ui.qrImage.addEventListener("error", () => {
-  state.qrFailed = true;
-  ui.qrImage.alt = "QR unavailable offline. Use the invite link instead.";
-  ui.status.textContent = "Offline mode: QR could not load, but invite link still works.";
-});
-
 function setAuthError(msg) {
   ui.authError.textContent = msg || "";
 }
+
+function showToast(message, type = "info") {
+  if (!ui.toastStack || !message) return;
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  ui.toastStack.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 180);
+  }, 2400);
+}
+
+function notify(message, type = "info") {
+  ui.status.textContent = message;
+  showToast(message, type);
+}
+
+ui.qrImage.addEventListener("error", () => {
+  state.qrFailed = true;
+  ui.qrImage.alt = "QR unavailable offline. Use the invite link instead.";
+  notify("Offline mode: QR could not load, but invite link still works.", "warning");
+});
 
 function cleanWord(value) {
   return String(value || "").trim().toUpperCase().replace(/[^A-Z]/g, "");
@@ -233,6 +252,12 @@ function addToPath(r, c) {
   return true;
 }
 
+function humanizeSubmitError(message) {
+  if (message === "Word already found this round") return { text: "Word already found", type: "warning" };
+  if (message === "Invalid word" || message === "Not a valid US English word") return { text: "Invalid word", type: "error" };
+  return { text: message, type: "error" };
+}
+
 async function submitCurrentWord() {
   const word = cleanWord(pathWord());
   if (!word || word.length < minLettersRequired()) return;
@@ -244,9 +269,10 @@ async function submitCurrentWord() {
       word,
     });
     clearPath();
-    ui.status.textContent = `+${res.points} points for ${word}`;
+    notify(`+${res.points} points for ${word}`, "success");
   } catch (err) {
-    ui.status.textContent = err.message;
+    const alert = humanizeSubmitError(err.message);
+    notify(alert.text, alert.type);
   }
 }
 
@@ -366,7 +392,7 @@ function hydrateRoom(room) {
   ui.roomCode.textContent = room.roomId;
   ui.playerBadge.textContent = me?.name || "Player";
   ui.roundBadge.textContent = `${room.match.currentRound || room.match.completedRounds}/${room.match.totalRounds}`;
-  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.4.0";
+  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.4.1";
 
   const link = `${location.origin}?room=${encodeURIComponent(room.roomId)}`;
   ui.inviteLink.value = link;
@@ -497,7 +523,7 @@ async function saveSettings() {
     minWordLength: ui.minWordConfig.value,
     totalRounds: ui.totalRoundsConfig.value,
   });
-  ui.status.textContent = "Settings saved.";
+  notify("Settings saved.", "success");
 }
 
 async function setReady(ready) {
@@ -543,7 +569,7 @@ function handlePointerRelease(event) {
     ui.boardWrap.releasePointerCapture(event.pointerId);
   }
   finishPointerTrace().catch((err) => {
-    ui.status.textContent = err.message;
+    notify(err.message, "error");
   });
 }
 
@@ -564,9 +590,9 @@ window.addEventListener("pointercancel", handlePointerCancel, true);
 
 ui.createBtn.addEventListener("click", () => createRoom().catch((err) => setAuthError(err.message)));
 ui.joinBtn.addEventListener("click", () => joinRoom().catch((err) => setAuthError(err.message)));
-ui.saveSettingsBtn.addEventListener("click", () => saveSettings().catch((err) => { ui.status.textContent = err.message; }));
-ui.readyBtn.addEventListener("click", () => setReady(!Boolean(currentPlayer()?.ready)).catch((err) => { ui.status.textContent = err.message; }));
-ui.startBtn.addEventListener("click", () => startRound().catch((err) => { ui.status.textContent = err.message; }));
+ui.saveSettingsBtn.addEventListener("click", () => saveSettings().catch((err) => { notify(err.message, "error"); }));
+ui.readyBtn.addEventListener("click", () => setReady(!Boolean(currentPlayer()?.ready)).catch((err) => { notify(err.message, "error"); }));
+ui.startBtn.addEventListener("click", () => startRound().catch((err) => { notify(err.message, "error"); }));
 ui.clearPathBtn.addEventListener("click", clearPath);
 ui.rotateBtn.addEventListener("click", () => {
   state.boardRotation = (state.boardRotation + 1) % 4;
@@ -586,9 +612,9 @@ window.addEventListener("resize", () => {
 ui.copyLinkBtn.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(ui.inviteLink.value);
-    ui.status.textContent = "Invite link copied";
+    notify("Invite link copied", "success");
   } catch {
-    ui.status.textContent = "Copy failed";
+    notify("Copy failed", "error");
   }
 });
 
@@ -600,9 +626,8 @@ ui.shareBtn.addEventListener("click", async () => {
     } else {
       await navigator.clipboard.writeText(url);
     }
-    ui.status.textContent = "Invite sent";
+    notify("Invite sent", "success");
   } catch {
-    ui.status.textContent = "Share cancelled";
+    notify("Share cancelled", "warning");
   }
 });
-
