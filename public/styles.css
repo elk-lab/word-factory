@@ -315,7 +315,7 @@ button:disabled {
   pointer-events: none;
 }
 
-\.board {
+.board {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.42rem;
@@ -651,5 +651,6 @@ li:last-child {
     font-size: 0.68rem;
   }
 }
+
 
 
