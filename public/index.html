@@ -34,6 +34,11 @@
           <div class="room-line">
             <h2>Room <span id="roomCode"></span></h2>
             <span class="player-chip" id="playerBadge">Player</span>
+            <button id="mechanicsBtn" class="icon-btn ghost" type="button" aria-label="Game rules" title="Game rules">
+              <span class="icon-wrap">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+              </span>
+            </button>
           </div>
           <p class="muted">Round <span id="roundBadge">0/0</span></p>
         </div>
@@ -55,9 +60,6 @@
       <div class="play-layout">
         <div class="play-stage">
           <aside class="play-side">
-            <div class="timer-card">
-              <div id="timer" class="timer">00</div>
-            </div>
             <div class="qr-wrap">
               <img id="qrImage" alt="Invite QR code" />
             </div>
@@ -84,6 +86,10 @@
               <button id="saveSettingsBtn" type="button">Save</button>
             </div>
 
+            <div class="timer-card top-timer">
+              <div id="timer" class="timer">00</div>
+            </div>
+
             <p id="pathHint" class="path-hint">Tap or drag to build a word</p>
             <div class="board-wrap rotate-0" id="boardWrap">
               <svg id="pathSvg" class="path-svg"></svg>
@@ -101,7 +107,6 @@
 
             <div class="row board-actions">
               <button id="rotateBtn" class="ghost" type="button">Rotate</button>
-              <button id="mechanicsBtn" class="ghost" type="button">Rules</button>
               <button id="readyBtn" class="ghost" type="button">Ready</button>
               <button id="startBtn" type="button">Start Round</button>
             </div>
@@ -170,11 +175,8 @@
     </form>
   </dialog>
 
-  <div id="ownerLabel" class="owner-label">attribution: elk-lab-jzion | v1.3.1</div>
+  <div id="ownerLabel" class="owner-label">attribution: elk-lab-jzion | v1.4.0</div>
 
   <script src="/app.js"></script>
 </body>
 </html>
-
-
-

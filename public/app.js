@@ -329,7 +329,7 @@ function hydrateRoom(room) {
   ui.roomCode.textContent = room.roomId;
   ui.playerBadge.textContent = me?.name || "Player";
   ui.roundBadge.textContent = `${room.match.currentRound || room.match.completedRounds}/${room.match.totalRounds}`;
-  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.3.0";
+  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.4.0";
 
   const link = `${location.origin}?room=${encodeURIComponent(room.roomId)}`;
   ui.inviteLink.value = link;
@@ -539,3 +539,4 @@ ui.shareBtn.addEventListener("click", async () => {
     ui.status.textContent = "Share cancelled";
   }
 });
+

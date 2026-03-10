@@ -1,4 +1,11 @@
-﻿:root {
+﻿html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+:root {
   --bg: #0b111c;
   --card: #121a29;
   --ink: #ecf4ff;
@@ -14,7 +21,6 @@
 * { box-sizing: border-box; }
 
 body {
-  margin: 0;
   font-family: "Segoe UI", Tahoma, sans-serif;
   font-size: 14px;
   background: radial-gradient(circle at 8% 8%, #16253e, #0b111c 45%, #070b12 100%);
@@ -35,6 +41,8 @@ body.round-active {
 
 .card {
   width: min(1120px, 100%);
+  max-width: 100%;
+  overflow: hidden;
   background: linear-gradient(160deg, #142037 0%, var(--card) 55%);
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -56,7 +64,7 @@ h1, h2, h3 { margin: 0.2rem 0; }
 .config-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
-  margin-bottom: 0.8rem;
+  margin-bottom: 0.7rem;
 }
 
 label {
@@ -75,6 +83,7 @@ input, button {
 input {
   background: #101a2b;
   color: var(--ink);
+  min-width: 0;
 }
 
 button {
@@ -120,6 +129,15 @@ button:disabled {
   margin-bottom: 0.7rem;
 }
 
+.room-meta,
+.board-column,
+.boards-shell,
+.play-layout,
+.play-stage,
+.play-side {
+  min-width: 0;
+}
+
 .room-line {
   gap: 0.6rem;
   flex-wrap: wrap;
@@ -136,9 +154,9 @@ button:disabled {
 
 .invite-wrap {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 0.45rem;
-  min-width: min(360px, 100%);
+  min-width: 0;
 }
 
 #inviteLink { background: #0f1b2f; }
@@ -166,13 +184,13 @@ button:disabled {
 
 .play-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(240px, 0.9fr);
+  grid-template-columns: minmax(0, 1.7fr) minmax(220px, 0.9fr);
   gap: 0.9rem;
 }
 
 .play-stage {
   display: grid;
-  grid-template-columns: 130px minmax(0, 1fr);
+  grid-template-columns: 110px minmax(0, 1fr);
   gap: 0.8rem;
   align-items: start;
 }
@@ -184,10 +202,14 @@ button:disabled {
 
 .timer-card {
   justify-content: center;
-  padding: 0.75rem;
+  padding: 0.55rem;
   background: #0f1829;
   border: 1px solid var(--line);
   border-radius: 14px;
+}
+
+.top-timer {
+  margin-bottom: 0.55rem;
 }
 
 .timer {
@@ -208,13 +230,11 @@ button:disabled {
 
 #qrImage {
   width: 100%;
-  max-width: 120px;
+  max-width: 110px;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: #fff;
 }
-
-.board-column { min-width: 0; }
 
 .path-hint {
   margin: 0 0 0.45rem;
@@ -224,6 +244,8 @@ button:disabled {
 
 .board-wrap {
   position: relative;
+  width: min(100%, 560px);
+  margin-inline: auto;
   transform-origin: center center;
   transition: transform 180ms ease;
 }
@@ -302,14 +324,16 @@ button:disabled {
   flex: 1 1 0;
 }
 
-.controls { margin-top: 0.4rem; }
+.controls {
+  margin-top: 0.4rem;
+  min-height: 22px;
+}
 
 .boards-shell {
   background: #0f1829;
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0.6rem;
-  min-width: 0;
 }
 
 .tabs {
@@ -396,6 +420,11 @@ li:last-child { border-bottom: none; }
     font-size: 13.5px;
   }
 
+  .app-shell {
+    padding: 0.75rem;
+    place-items: start center;
+  }
+
   .card {
     padding: 0.8rem;
   }
@@ -413,19 +442,31 @@ li:last-child { border-bottom: none; }
   }
 
   .play-side {
-    grid-template-columns: 1fr auto;
-    align-items: start;
+    display: none;
   }
 
-  .timer-card {
-    min-height: 70px;
-  }
-
-  #qrImage {
-    max-width: 90px;
+  .board-wrap {
+    width: min(100%, 86vw);
   }
 
   .tab-btn {
     min-height: 42px;
+  }
+
+  body.round-active .app-shell {
+    padding-top: 12svh;
+    padding-bottom: 0.5rem;
+  }
+
+  body.round-active .config-grid {
+    display: none;
+  }
+
+  body.round-active .game-top {
+    margin-bottom: 0.45rem;
+  }
+
+  body.round-active .card {
+    border-radius: 16px;
   }
 }
