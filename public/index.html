@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -65,7 +65,7 @@
             </div>
           </aside>
 
-          <div class="board-column">
+          <div class="board-column" id="boardColumn">
             <div class="config-grid">
               <label>
                 Round timer (seconds)
@@ -174,6 +174,13 @@
       <button type="submit">Close</button>
     </form>
   </dialog>
+
+  <div id="countdownOverlay" class="countdown-overlay" aria-hidden="true">
+    <div class="countdown-card">
+      <p class="countdown-label">Round starting in</p>
+      <div id="countdownValue" class="countdown-value">5</div>
+    </div>
+  </div>
 
   <div id="ownerLabel" class="owner-label">attribution: elk-lab-jzion | v1.4.0</div>
 

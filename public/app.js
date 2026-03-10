@@ -1,4 +1,4 @@
-﻿const $ = (id) => document.getElementById(id);
+const $ = (id) => document.getElementById(id);
 
 const state = {
   roomId: "",
@@ -14,6 +14,7 @@ const state = {
   pointerMoved: false,
   pointerSubmitTap: false,
   pointerId: null,
+  roundFocusToken: "",
 };
 
 const ui = {
@@ -41,6 +42,7 @@ const ui = {
   rotateBtn: $("rotateBtn"),
   mechanicsBtn: $("mechanicsBtn"),
   mechanicsDialog: $("mechanicsDialog"),
+  boardColumn: $("boardColumn"),
   boardWrap: $("boardWrap"),
   pathSvg: $("pathSvg"),
   board: $("board"),
@@ -53,6 +55,8 @@ const ui = {
   wordsUsed: $("wordsUsed"),
   longestWords: $("longestWords"),
   ownerLabel: $("ownerLabel"),
+  countdownOverlay: $("countdownOverlay"),
+  countdownValue: $("countdownValue"),
   tabButtons: Array.from(document.querySelectorAll(".tab-btn")),
   tabPanels: Array.from(document.querySelectorAll(".tab-panel")),
 };
@@ -94,6 +98,35 @@ function setActiveTab(name) {
 function pathWord() {
   if (!state.room?.round?.grid) return "";
   return state.selectedPath.map((cell) => state.room.round.grid[cell.r][cell.c]).join("");
+}
+
+function isMobileView() {
+  return window.matchMedia("(max-width: 760px)").matches;
+}
+
+function focusBoardForRound(force = false) {
+  if (!isMobileView() || !ui.boardColumn) return;
+  const phase = state.room?.round?.phase;
+  if (!force && phase !== "countdown" && phase !== "active") return;
+
+  const token = `${state.room?.match?.currentRound || 0}:${phase}`;
+  if (!force && state.roundFocusToken === token) return;
+  state.roundFocusToken = token;
+
+  requestAnimationFrame(() => {
+    ui.boardColumn.scrollIntoView({ behavior: force ? "auto" : "smooth", block: "center", inline: "nearest" });
+    const topOffset = Math.max(24, Math.round(window.innerHeight * 0.14));
+    const top = window.scrollY + ui.boardColumn.getBoundingClientRect().top - topOffset;
+    window.scrollTo({ top: Math.max(0, top), behavior: force ? "auto" : "smooth" });
+  });
+}
+
+function renderCountdownOverlay(round) {
+  const countdownRemaining = round?.countdownRemaining || 0;
+  const show = round?.phase === "countdown" && countdownRemaining > 0;
+  ui.countdownOverlay.classList.toggle("visible", show);
+  ui.countdownOverlay.setAttribute("aria-hidden", show ? "false" : "true");
+  ui.countdownValue.textContent = show ? String(countdownRemaining) : "";
 }
 
 function renderPathPreview() {
@@ -229,13 +262,13 @@ async function api(path, payload) {
 }
 
 function handleTilePointerDown(event, tile) {
-  if (!state.room?.round?.active) return;
+  if (state.room?.round?.phase !== "active") return;
   event.preventDefault();
   state.pointerActive = true;
   state.pointerMoved = false;
   state.pointerSubmitTap = false;
   state.pointerId = event.pointerId;
-  ui.boardWrap.setPointerCapture(event.pointerId);
+  if (ui.boardWrap.setPointerCapture) ui.boardWrap.setPointerCapture(event.pointerId);
 
   const r = Number(tile.dataset.r);
   const c = Number(tile.dataset.c);
@@ -316,15 +349,19 @@ function renderLongestWords(longestWords) {
 
 function hydrateRoom(room) {
   const previousRound = state.room?.match?.currentRound;
+  const previousPhase = state.room?.round?.phase;
   state.room = room;
 
   const me = currentPlayer();
   const matchOver = Boolean(room.match?.over);
-  const roundActive = room.round.active;
+  const roundPhase = room.round.phase || (room.round.active ? "active" : "idle");
+  const roundLive = roundPhase === "active";
+  const roundStaging = roundPhase === "active" || roundPhase === "countdown";
   const minLetters = room.settings?.minWordLength || 3;
   const meReady = Boolean(me?.ready);
 
-  document.body.classList.toggle("round-active", roundActive);
+  document.body.classList.toggle("round-active", roundLive);
+  document.body.classList.toggle("round-staging", roundStaging);
 
   ui.roomCode.textContent = room.roomId;
   ui.playerBadge.textContent = me?.name || "Player";
@@ -341,39 +378,51 @@ function hydrateRoom(room) {
   ui.maxPlayersConfig.value = room.settings?.maxPlayers || 8;
   ui.minWordConfig.value = room.settings?.minWordLength || 3;
   ui.totalRoundsConfig.value = room.settings?.totalRounds || 3;
-  ui.timer.textContent = String(room.round.remaining || room.settings.roundSeconds || 0).padStart(2, "0");
+
+  const timerValue = roundPhase === "countdown"
+    ? room.round.countdownRemaining || 0
+    : room.round.remaining || room.settings.roundSeconds || 0;
+  ui.timer.textContent = String(timerValue).padStart(2, "0");
 
   const roundChanged = previousRound !== undefined && previousRound !== room.match.currentRound;
-  if (roundChanged || !roundActive) clearPath();
+  const phaseChanged = previousPhase && previousPhase !== roundPhase;
+  if (roundChanged || !roundStaging) clearPath();
 
   renderBoard(room.round.grid);
   renderPlayers(room.players);
   renderLeaderboard(room.leaderboard);
   renderRoundWords(room.round.usedWords || []);
   renderLongestWords(room.longestWords || []);
+  renderCountdownOverlay(room.round);
 
-  ui.startBtn.textContent = matchOver ? "Match Ended" : `Start Round ${room.match.completedRounds + 1}`;
+  ui.startBtn.textContent = matchOver
+    ? "Match Ended"
+    : roundPhase === "countdown"
+      ? "Starting..."
+      : `Start Round ${room.match.completedRounds + 1}`;
   ui.startBtn.disabled =
     matchOver ||
     !state.host ||
-    roundActive ||
+    roundStaging ||
     !room.readyGate?.membersReady ||
     room.players.length < (room.settings.minPlayers || 2);
 
-  const settingsLocked = room.match.currentRound > 0 || roundActive;
+  const settingsLocked = room.match.currentRound > 0 || roundStaging;
   ui.timerConfig.disabled = !state.host || settingsLocked;
   ui.maxPlayersConfig.disabled = !state.host || settingsLocked;
   ui.minWordConfig.disabled = !state.host || settingsLocked;
   ui.totalRoundsConfig.disabled = !state.host || settingsLocked;
   ui.saveSettingsBtn.disabled = !state.host || settingsLocked;
 
-  ui.readyBtn.disabled = state.host || roundActive || matchOver;
+  ui.readyBtn.disabled = state.host || roundStaging || matchOver;
   ui.readyBtn.textContent = meReady ? "Unready" : "Ready";
-  ui.clearPathBtn.disabled = !roundActive && state.selectedPath.length === 0;
+  ui.clearPathBtn.disabled = !roundStaging && state.selectedPath.length === 0;
 
   if (matchOver) {
     ui.status.textContent = "Match over. Final leaderboard is locked.";
-  } else if (roundActive) {
+  } else if (roundPhase === "countdown") {
+    ui.status.textContent = `Round starts in ${room.round.countdownRemaining || 0}. Get ready.`;
+  } else if (roundLive) {
     ui.status.textContent = `Round live. Adjacent path only. Min ${minLetters} letters.`;
   } else if (state.host) {
     const ready = room.readyGate?.membersReady;
@@ -389,6 +438,10 @@ function hydrateRoom(room) {
     ui.status.textContent = meReady
       ? `You are ready. Waiting for host (round ${room.match.completedRounds + 1}/${room.settings.totalRounds}).`
       : `Click Ready (round ${room.match.completedRounds + 1}/${room.settings.totalRounds}).`;
+  }
+
+  if ((roundChanged && roundStaging) || (phaseChanged && roundStaging)) {
+    focusBoardForRound();
   }
 }
 
@@ -467,8 +520,7 @@ async function startRound() {
 
 async function finishPointerTrace() {
   if (!state.pointerActive) return;
-  const shouldAutoSubmit =
-    (state.pointerMoved || state.pointerSubmitTap) && cleanWord(pathWord()).length >= minLettersRequired();
+  const shouldAutoSubmit = cleanWord(pathWord()).length >= minLettersRequired() && (state.pointerMoved || state.pointerSubmitTap);
   state.pointerActive = false;
   state.pointerMoved = false;
   state.pointerSubmitTap = false;
@@ -476,30 +528,39 @@ async function finishPointerTrace() {
   if (shouldAutoSubmit) await submitCurrentWord();
 }
 
-ui.boardWrap.addEventListener("pointermove", (event) => {
-  if (!state.pointerActive || event.pointerId !== state.pointerId || !state.room?.round?.active) return;
+function handlePointerMove(event) {
+  if (!state.pointerActive || event.pointerId !== state.pointerId || state.room?.round?.phase !== "active") return;
   const target = document.elementFromPoint(event.clientX, event.clientY);
   const tile = target?.closest?.(".tile");
   if (!tile || !ui.board.contains(tile)) return;
   const changed = addToPath(Number(tile.dataset.r), Number(tile.dataset.c));
   if (changed) state.pointerMoved = true;
-});
+}
 
-ui.boardWrap.addEventListener("pointerup", (event) => {
-  if (state.pointerId !== null && ui.boardWrap.hasPointerCapture?.(event.pointerId)) {
+function handlePointerRelease(event) {
+  if (state.pointerId === null || event.pointerId !== state.pointerId) return;
+  if (ui.boardWrap.hasPointerCapture?.(event.pointerId)) {
     ui.boardWrap.releasePointerCapture(event.pointerId);
   }
   finishPointerTrace().catch((err) => {
     ui.status.textContent = err.message;
   });
-});
+}
 
-ui.boardWrap.addEventListener("pointercancel", () => {
+function handlePointerCancel(event) {
+  if (state.pointerId !== null && event.pointerId !== state.pointerId) return;
   state.pointerActive = false;
   state.pointerMoved = false;
   state.pointerSubmitTap = false;
   state.pointerId = null;
-});
+}
+
+ui.boardWrap.addEventListener("pointermove", handlePointerMove, { passive: false });
+ui.boardWrap.addEventListener("pointerup", handlePointerRelease);
+ui.boardWrap.addEventListener("lostpointercapture", handlePointerRelease);
+window.addEventListener("pointermove", handlePointerMove, { passive: false });
+window.addEventListener("pointerup", handlePointerRelease, true);
+window.addEventListener("pointercancel", handlePointerCancel, true);
 
 ui.createBtn.addEventListener("click", () => createRoom().catch((err) => setAuthError(err.message)));
 ui.joinBtn.addEventListener("click", () => joinRoom().catch((err) => setAuthError(err.message)));
@@ -515,7 +576,12 @@ ui.rotateBtn.addEventListener("click", () => {
 ui.mechanicsBtn.addEventListener("click", () => ui.mechanicsDialog.showModal());
 ui.tabButtons.forEach((button) => button.addEventListener("click", () => setActiveTab(button.dataset.tab)));
 
-window.addEventListener("resize", () => renderPath());
+window.addEventListener("resize", () => {
+  renderPath();
+  if (state.room?.round?.phase === "countdown" || state.room?.round?.phase === "active") {
+    focusBoardForRound(true);
+  }
+});
 
 ui.copyLinkBtn.addEventListener("click", async () => {
   try {

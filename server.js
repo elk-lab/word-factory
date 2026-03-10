@@ -1,4 +1,4 @@
-﻿const http = require("http");
+const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -30,6 +30,7 @@ const DEFAULT_ROUND_SECONDS = 60;
 const DEFAULT_MAX_PLAYERS = 8;
 const DEFAULT_MIN_WORD_LENGTH = 3;
 const DEFAULT_TOTAL_ROUNDS = 3;
+const ROUND_COUNTDOWN_MS = 5000;
 const MIN_PLAYERS = 2;
 const MIN_ROUND_SECONDS = 15;
 const MAX_ROUND_SECONDS = 300;
@@ -207,9 +208,20 @@ function allMembersReady(room) {
   return members.length > 0 && members.every((p) => p.ready);
 }
 
+function roundPhase(room) {
+  if (room.match.over) return "ended";
+  if (room.round.pending) return "countdown";
+  if (room.round.active) return "active";
+  return "idle";
+}
+
 function roomSnapshot(room) {
   const now = Date.now();
   const remaining = room.round.active ? Math.max(0, Math.ceil((room.round.endsAt - now) / 1000)) : 0;
+  const countdownRemaining = room.round.pending
+    ? Math.max(0, Math.ceil((room.round.countdownEndsAt - now) / 1000))
+    : 0;
+  const phase = roundPhase(room);
   return {
     app: { version: APP_VERSION, attribution: APP_ATTRIBUTION },
     roomId: room.id,
@@ -237,9 +249,13 @@ function roomSnapshot(room) {
     })),
     round: {
       active: room.round.active,
+      pending: room.round.pending,
+      phase,
       gridSize: GRID_SIZE,
       grid: room.round.grid,
       endsAt: room.round.endsAt,
+      countdownEndsAt: room.round.countdownEndsAt,
+      countdownRemaining,
       remaining,
       usedWords: Array.from(room.round.usedWords),
     },
@@ -314,7 +330,9 @@ function emitRoom(room) {
 
 function endRound(room) {
   room.round.active = false;
+  room.round.pending = false;
   room.round.endsAt = 0;
+  room.round.countdownEndsAt = 0;
   room.round.lastResults = room.round.wordLog.slice(-30);
   room.match.completedRounds += 1;
   if (room.match.completedRounds >= room.settings.totalRounds) {
@@ -328,8 +346,17 @@ function endRound(room) {
 function ensureTimer(room) {
   if (room.interval) return;
   room.interval = setInterval(() => {
+    const now = Date.now();
+    if (room.round.pending) {
+      if (now >= room.round.countdownEndsAt) {
+        room.round.pending = false;
+        room.round.active = true;
+      }
+      emitRoom(room);
+      return;
+    }
     if (!room.round.active) return;
-    if (Date.now() >= room.round.endsAt) {
+    if (now >= room.round.endsAt) {
       endRound(room);
       emitRoom(room);
     } else {
@@ -361,8 +388,10 @@ function createRoom(name) {
     players: [{ id: hostPid, token: hostToken, name: name || "Host", score: 0, ready: true }],
     round: {
       active: false,
+      pending: false,
       grid: [],
       endsAt: 0,
+      countdownEndsAt: 0,
       usedWords: new Set(),
       wordLog: [],
       lastResults: [],
@@ -431,6 +460,7 @@ async function routeApi(req, res, url) {
         tileReusePerWord: false,
         includesQuTile: true,
         scoring: "3-4=1, 5=2, 6=3, 7=5, 8+=11",
+        countdownSeconds: ROUND_COUNTDOWN_MS / 1000,
       },
       offlineReady: true,
       security: {
@@ -490,7 +520,7 @@ async function routeApi(req, res, url) {
     const room = rooms.get(rid);
     if (!room) return sendJson(res, 404, { error: "Room not found" });
     if (!name) return sendJson(res, 400, { error: "Name is required" });
-    if (room.round.active) return sendJson(res, 400, { error: "Cannot join while a round is active" });
+    if (room.round.active || room.round.pending) return sendJson(res, 400, { error: "Cannot join while a round is active" });
     if (room.match.over) return sendJson(res, 400, { error: "Match has ended" });
     if (room.players.length >= room.settings.maxPlayers) return sendJson(res, 400, { error: "Room is full" });
 
@@ -511,7 +541,7 @@ async function routeApi(req, res, url) {
     const player = requirePlayer(room, pid, token);
     if (!player) return sendJson(res, 403, { error: "Unauthorized" });
     if (room.hostId !== player.id) return sendJson(res, 403, { error: "Only host can change settings" });
-    if (room.round.active) return sendJson(res, 400, { error: "Cannot change settings during an active round" });
+    if (room.round.active || room.round.pending) return sendJson(res, 400, { error: "Cannot change settings during an active round" });
     if (room.match.currentRound > 0) return sendJson(res, 400, { error: "Settings lock after match starts" });
 
     const nextRoundSeconds = clampInt(
@@ -556,7 +586,7 @@ async function routeApi(req, res, url) {
     if (!room) return sendJson(res, 404, { error: "Room not found" });
     const player = requirePlayer(room, pid, token);
     if (!player) return sendJson(res, 403, { error: "Unauthorized" });
-    if (room.round.active) return sendJson(res, 400, { error: "Round already active" });
+    if (room.round.active || room.round.pending) return sendJson(res, 400, { error: "Round already active" });
     if (room.match.over) return sendJson(res, 400, { error: "Match has ended" });
     if (player.id === room.hostId) return sendJson(res, 400, { error: "Host is always ready" });
 
@@ -575,14 +605,17 @@ async function routeApi(req, res, url) {
     const player = requirePlayer(room, pid, token);
     if (!player) return sendJson(res, 403, { error: "Unauthorized" });
     if (room.hostId !== player.id) return sendJson(res, 403, { error: "Only host can start round" });
+    if (room.round.active || room.round.pending) return sendJson(res, 400, { error: "Round already active" });
     if (room.players.length < MIN_PLAYERS) return sendJson(res, 400, { error: `Need at least ${MIN_PLAYERS} players` });
     if (!allMembersReady(room)) return sendJson(res, 400, { error: "All non-host members must be ready" });
     if (room.match.over) return sendJson(res, 400, { error: "Match has ended" });
 
-    room.round.active = true;
     room.match.currentRound = room.match.completedRounds + 1;
+    room.round.pending = true;
+    room.round.active = false;
     room.round.grid = createGrid();
-    room.round.endsAt = Date.now() + room.settings.roundSeconds * 1000;
+    room.round.countdownEndsAt = Date.now() + ROUND_COUNTDOWN_MS;
+    room.round.endsAt = room.round.countdownEndsAt + room.settings.roundSeconds * 1000;
     room.round.usedWords.clear();
     room.round.wordLog = [];
     emitRoom(room);
@@ -614,7 +647,9 @@ async function routeApi(req, res, url) {
     room.round.wordLog.push({ playerId: pid, playerName: player.name, word, points, t: Date.now() });
     room.match.longestWords.push({ word, playerName: player.name, round: room.match.currentRound, length: word.length });
     room.match.longestWords.sort((a, b) => b.length - a.length || a.word.localeCompare(b.word));
-    room.match.longestWords = room.match.longestWords.filter((entry, index, all) => index === all.findIndex((item) => item.word === entry.word && item.playerName === entry.playerName));
+    room.match.longestWords = room.match.longestWords.filter(
+      (entry, index, all) => index === all.findIndex((item) => item.word === entry.word && item.playerName === entry.playerName)
+    );
     player.score += points;
     emitRoom(room);
     return sendJson(res, 200, { ok: true, points, state: roomSnapshot(room) });
@@ -639,8 +674,3 @@ server.listen(PORT, () => {
   console.log(`Local dictionary loaded: ${dictionary.size} words`);
   console.log(`Webster fallback enabled: ${Boolean(WEBSTER_API_KEY)}`);
 });
-
-
-
-
-
