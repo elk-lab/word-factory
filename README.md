@@ -1,6 +1,6 @@
 ﻿# Word Factory Multiplayer
 
-Responsive web and mobile multiplayer Word Factory with a 5x5 board, timed rounds, room invites, host controls, and US English dictionary validation.
+Responsive web and mobile multiplayer Word Factory with a 5x5 board, smooth tap/drag path tracing, timed rounds, room invites, host controls, and US English dictionary validation.
 
 ## Version
 - `v1.3.0`
@@ -8,7 +8,7 @@ Responsive web and mobile multiplayer Word Factory with a 5x5 board, timed round
 
 ## Highlights
 - 5x5 board with adjacency rules and `Qu` tiles
-- Tap-to-build and press-and-drag tracing with auto-submit on release
+- Tap-to-build, valid-neighbor highlights, and press-and-drag tracing with auto-submit on release
 - Host settings for timer, max players, minimum word length, and total rounds
 - Multi-round match scoring with leaderboard and longest-word tracking
 - Round-local used-word resets
@@ -80,3 +80,4 @@ Import script:
 - `public/` - UI and interaction logic
 - `data/` - local dictionary file
 - `scripts/` - dictionary import tooling
+

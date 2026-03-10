@@ -12,6 +12,8 @@ const state = {
   boardRotation: 0,
   pointerActive: false,
   pointerMoved: false,
+  pointerSubmitTap: false,
+  pointerId: null,
 };
 
 const ui = {
@@ -42,10 +44,8 @@ const ui = {
   boardWrap: $("boardWrap"),
   pathSvg: $("pathSvg"),
   board: $("board"),
-  wordForm: $("wordForm"),
-  wordInput: $("wordInput"),
+  pathPreview: $("pathPreview"),
   clearPathBtn: $("clearPathBtn"),
-  submitWordBtn: $("submitWordBtn"),
   startBtn: $("startBtn"),
   status: $("status"),
   playersList: $("playersList"),
@@ -91,22 +91,46 @@ function setActiveTab(name) {
   ui.tabPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === name));
 }
 
-function clearPath() {
-  state.selectedPath = [];
-  ui.wordInput.value = "";
-  renderSelectedTiles();
-  renderPath();
-}
-
 function pathWord() {
   if (!state.room?.round?.grid) return "";
   return state.selectedPath.map((cell) => state.room.round.grid[cell.r][cell.c]).join("");
 }
 
+function renderPathPreview() {
+  const text = pathWord();
+  ui.pathPreview.textContent = text || "Tap or drag to build a word";
+  ui.pathPreview.classList.toggle("empty", !text);
+}
+
+function clearPath() {
+  state.selectedPath = [];
+  renderPathPreview();
+  renderSelectedTiles();
+  renderPath();
+}
+
 function renderSelectedTiles() {
   const selected = new Set(state.selectedPath.map((cell) => `${cell.r},${cell.c}`));
+  const next = new Set();
+  const last = state.selectedPath[state.selectedPath.length - 1];
+
+  if (last && state.room?.round?.grid) {
+    for (let dr = -1; dr <= 1; dr += 1) {
+      for (let dc = -1; dc <= 1; dc += 1) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = last.r + dr;
+        const nc = last.c + dc;
+        if (nr < 0 || nc < 0 || nr >= state.room.round.grid.length || nc >= state.room.round.grid[0].length) continue;
+        const key = `${nr},${nc}`;
+        if (!selected.has(key)) next.add(key);
+      }
+    }
+  }
+
   ui.board.querySelectorAll(".tile").forEach((tile) => {
-    tile.classList.toggle("selected", selected.has(`${tile.dataset.r},${tile.dataset.c}`));
+    const key = `${tile.dataset.r},${tile.dataset.c}`;
+    tile.classList.toggle("selected", selected.has(key));
+    tile.classList.toggle("next", next.has(key));
   });
 }
 
@@ -139,32 +163,32 @@ function renderPath() {
   }
 }
 
-function applyTileToPath(r, c) {
-  if (!state.room?.round?.active) return false;
+function startPath(r, c) {
+  state.selectedPath = [{ r, c }];
+  renderPathPreview();
+  renderSelectedTiles();
+  renderPath();
+}
+
+function addToPath(r, c) {
   const next = { r, c };
-  const prev = state.selectedPath[state.selectedPath.length - 1];
-  const idx = state.selectedPath.findIndex((cell) => cell.r === r && cell.c === c);
-
-  if (!prev) {
-    state.selectedPath = [next];
-  } else if (idx === state.selectedPath.length - 1) {
-    state.selectedPath.pop();
-  } else if (idx >= 0) {
-    return false;
-  } else if (isAdjacent(prev, next)) {
-    state.selectedPath.push(next);
-  } else {
-    return false;
+  const last = state.selectedPath[state.selectedPath.length - 1];
+  if (!last) {
+    startPath(r, c);
+    return true;
   }
-
-  ui.wordInput.value = pathWord();
+  if (last.r === r && last.c === c) return false;
+  if (state.selectedPath.some((cell) => cell.r === r && cell.c === c)) return false;
+  if (!isAdjacent(last, next)) return false;
+  state.selectedPath.push(next);
+  renderPathPreview();
   renderSelectedTiles();
   renderPath();
   return true;
 }
 
 async function submitCurrentWord() {
-  const word = cleanWord(ui.wordInput.value);
+  const word = cleanWord(pathWord());
   if (!word || word.length < minLettersRequired()) return;
   try {
     const res = await api("/api/submit-word", {
@@ -191,6 +215,42 @@ async function api(path, payload) {
   return data;
 }
 
+function handleTilePointerDown(event, tile) {
+  if (!state.room?.round?.active) return;
+  event.preventDefault();
+  state.pointerActive = true;
+  state.pointerMoved = false;
+  state.pointerSubmitTap = false;
+  state.pointerId = event.pointerId;
+  ui.boardWrap.setPointerCapture(event.pointerId);
+
+  const r = Number(tile.dataset.r);
+  const c = Number(tile.dataset.c);
+  const last = state.selectedPath[state.selectedPath.length - 1];
+  const currentWord = cleanWord(pathWord());
+
+  if (last && last.r === r && last.c === c && currentWord.length >= minLettersRequired()) {
+    state.pointerSubmitTap = true;
+    return;
+  }
+
+  if (!last) {
+    startPath(r, c);
+    return;
+  }
+
+  if (state.selectedPath.some((cell) => cell.r === r && cell.c === c)) {
+    return;
+  }
+
+  if (!isAdjacent(last, { r, c })) {
+    startPath(r, c);
+    return;
+  }
+
+  addToPath(r, c);
+}
+
 function renderBoard(grid) {
   if (!Array.isArray(grid) || !grid.length) {
     ui.board.innerHTML = "";
@@ -203,23 +263,10 @@ function renderBoard(grid) {
     .join("");
 
   ui.board.querySelectorAll(".tile").forEach((tile) => {
-    tile.addEventListener("pointerdown", (event) => {
-      if (!state.room?.round?.active) return;
-      event.preventDefault();
-      state.pointerActive = true;
-      state.pointerMoved = false;
-      const r = Number(tile.dataset.r);
-      const c = Number(tile.dataset.c);
-      const last = state.selectedPath[state.selectedPath.length - 1];
-      const canContinue =
-        last &&
-        ((isAdjacent(last, { r, c }) && !state.selectedPath.some((cell) => cell.r === r && cell.c === c)) ||
-          (last.r === r && last.c === c));
-      if (!canContinue) clearPath();
-      applyTileToPath(r, c);
-    });
+    tile.addEventListener("pointerdown", (event) => handleTilePointerDown(event, tile));
   });
 
+  renderPathPreview();
   renderSelectedTiles();
   renderPath();
 }
@@ -294,10 +341,6 @@ function hydrateRoom(room) {
     !room.readyGate?.membersReady ||
     room.players.length < (room.settings.minPlayers || 2);
 
-  ui.submitWordBtn.disabled = !roundActive;
-  ui.wordInput.disabled = !roundActive;
-  ui.clearPathBtn.disabled = !roundActive;
-
   const settingsLocked = room.match.currentRound > 0 || roundActive;
   ui.timerConfig.disabled = !state.host || settingsLocked;
   ui.maxPlayersConfig.disabled = !state.host || settingsLocked;
@@ -307,6 +350,7 @@ function hydrateRoom(room) {
 
   ui.readyBtn.disabled = state.host || roundActive || matchOver;
   ui.readyBtn.textContent = meReady ? "Unready" : "Ready";
+  ui.clearPathBtn.disabled = !roundActive && state.selectedPath.length === 0;
 
   if (matchOver) {
     ui.status.textContent = "Match over. Final leaderboard is locked.";
@@ -402,24 +446,30 @@ async function startRound() {
   });
 }
 
-ui.boardWrap.addEventListener("pointermove", (event) => {
-  if (!state.pointerActive || !state.room?.round?.active) return;
-  const target = document.elementFromPoint(event.clientX, event.clientY);
-  const tile = target?.closest?.(".tile");
-  if (!tile || !ui.board.contains(tile)) return;
-  const changed = applyTileToPath(Number(tile.dataset.r), Number(tile.dataset.c));
-  if (changed) state.pointerMoved = true;
-});
-
 async function finishPointerTrace() {
   if (!state.pointerActive) return;
-  const shouldAutoSubmit = state.pointerMoved && cleanWord(ui.wordInput.value).length >= minLettersRequired();
+  const shouldAutoSubmit =
+    (state.pointerMoved || state.pointerSubmitTap) && cleanWord(pathWord()).length >= minLettersRequired();
   state.pointerActive = false;
   state.pointerMoved = false;
+  state.pointerSubmitTap = false;
+  state.pointerId = null;
   if (shouldAutoSubmit) await submitCurrentWord();
 }
 
-ui.boardWrap.addEventListener("pointerup", () => {
+ui.boardWrap.addEventListener("pointermove", (event) => {
+  if (!state.pointerActive || event.pointerId !== state.pointerId || !state.room?.round?.active) return;
+  const target = document.elementFromPoint(event.clientX, event.clientY);
+  const tile = target?.closest?.(".tile");
+  if (!tile || !ui.board.contains(tile)) return;
+  const changed = addToPath(Number(tile.dataset.r), Number(tile.dataset.c));
+  if (changed) state.pointerMoved = true;
+});
+
+ui.boardWrap.addEventListener("pointerup", (event) => {
+  if (state.pointerId !== null && ui.boardWrap.hasPointerCapture?.(event.pointerId)) {
+    ui.boardWrap.releasePointerCapture(event.pointerId);
+  }
   finishPointerTrace().catch((err) => {
     ui.status.textContent = err.message;
   });
@@ -428,6 +478,8 @@ ui.boardWrap.addEventListener("pointerup", () => {
 ui.boardWrap.addEventListener("pointercancel", () => {
   state.pointerActive = false;
   state.pointerMoved = false;
+  state.pointerSubmitTap = false;
+  state.pointerId = null;
 });
 
 ui.createBtn.addEventListener("click", () => createRoom().catch((err) => setAuthError(err.message)));
@@ -443,11 +495,6 @@ ui.rotateBtn.addEventListener("click", () => {
 });
 ui.mechanicsBtn.addEventListener("click", () => ui.mechanicsDialog.showModal());
 ui.tabButtons.forEach((button) => button.addEventListener("click", () => setActiveTab(button.dataset.tab)));
-
-ui.wordForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  submitCurrentWord();
-});
 
 window.addEventListener("resize", () => renderPath());
 
@@ -473,4 +520,3 @@ ui.shareBtn.addEventListener("click", async () => {
     ui.status.textContent = "Share cancelled";
   }
 });
-

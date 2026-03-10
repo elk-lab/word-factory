@@ -102,15 +102,14 @@
               <div id="board" class="board"></div>
             </div>
 
-            <form id="wordForm" class="row word-row">
-              <input id="wordInput" placeholder="Type, tap, or drag across tiles" autocomplete="off" />
+            <div id="wordForm" class="row word-row">
+              <div id="pathPreview" class="path-preview" aria-live="polite">Tap or drag to build a word</div>
               <button id="clearPathBtn" class="icon-btn ghost" type="button" aria-label="Clear path" title="Clear path">
                 <span class="icon-wrap">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19L19 6M6 6l13 13"/></svg>
                 </span>
               </button>
-              <button id="submitWordBtn" type="submit">Submit</button>
-            </form>
+            </div>
 
             <div class="row controls">
               <button id="startBtn" type="button">Start Round</button>
@@ -168,6 +167,7 @@
       <li>Words must use touching tiles in any direction.</li>
       <li>The same tile cannot be reused in one word.</li>
       <li>Release after tracing to auto-submit the word.</li>
+      <li>Tap the current end tile again to submit a tapped path.</li>
       <li>Words used reset every new round.</li>
       <li>Scoring: 3-4 letters = 1, 5 = 2, 6 = 3, 7 = 5, 8+ = 11.</li>
     </ul>
@@ -176,7 +176,7 @@
     </form>
   </dialog>
 
-  <div id="ownerLabel" class="owner-label">attribution: elk-lab-jzion | v1.3.0</div>
+  <div id="ownerLabel" class="owner-label">attribution: elk-lab-jzion | v1.3.1</div>
 
   <script src="/app.js"></script>
 </body>
