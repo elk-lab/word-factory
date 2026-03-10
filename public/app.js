@@ -17,6 +17,7 @@ const state = {
   touchActive: false,
   touchMoved: false,
   touchIdentifier: null,
+  touchSubmitTap: false,
   roundFocusToken: "",
 };
 
@@ -164,6 +165,7 @@ function renderPathPreview() {
 function clearPath() {
   state.selectedPath = [];
   state.pointerSubmitTap = false;
+  state.touchSubmitTap = false;
   renderPathPreview();
   renderSelectedTiles();
   renderPath();
@@ -305,6 +307,7 @@ function applyTileSelection(tile) {
 
   if (last && last.r === r && last.c === c && currentWord.length >= minLettersRequired()) {
     state.pointerSubmitTap = true;
+    state.touchSubmitTap = true;
     return true;
   }
 
@@ -414,7 +417,7 @@ function hydrateRoom(room) {
   ui.roomCode.textContent = room.roomId;
   ui.playerBadge.textContent = me?.name || "Player";
   ui.roundBadge.textContent = `${room.match.currentRound || room.match.completedRounds}/${room.match.totalRounds}`;
-  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.4.2";
+  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.4.3";
 
   const link = `${location.origin}?room=${encodeURIComponent(room.roomId)}`;
   ui.inviteLink.value = link;
@@ -622,6 +625,7 @@ function handleTouchStart(event) {
   state.touchMoved = false;
   state.touchIdentifier = touch.identifier;
   state.pointerSubmitTap = false;
+  state.touchSubmitTap = false;
   applyTileSelection(tile);
 }
 
@@ -641,11 +645,13 @@ function handleTouchEnd(event) {
   const touch = activeTouchFromList(event.changedTouches);
   if (!touch) return;
   event.preventDefault();
-  const shouldAutoSubmit = cleanWord(pathWord()).length >= minLettersRequired() && (state.touchMoved || state.pointerSubmitTap);
+  const shouldAutoSubmit = cleanWord(pathWord()).length >= minLettersRequired() && (state.touchMoved || state.touchSubmitTap);
   state.touchActive = false;
   state.touchMoved = false;
   state.touchIdentifier = null;
   state.pointerSubmitTap = false;
+  state.touchSubmitTap = false;
+  state.touchSubmitTap = false;
   if (shouldAutoSubmit) {
     submitCurrentWord().catch((err) => {
       notify(err.message, "error");
@@ -661,6 +667,7 @@ function handleTouchCancel(event) {
   state.touchMoved = false;
   state.touchIdentifier = null;
   state.pointerSubmitTap = false;
+  state.touchSubmitTap = false;
 }
 
 ui.boardWrap.addEventListener("pointermove", handlePointerMove, { passive: false });
@@ -670,6 +677,9 @@ ui.boardWrap.addEventListener("touchstart", handleTouchStart, { passive: false }
 ui.boardWrap.addEventListener("touchmove", handleTouchMove, { passive: false });
 ui.boardWrap.addEventListener("touchend", handleTouchEnd, { passive: false });
 ui.boardWrap.addEventListener("touchcancel", handleTouchCancel, { passive: false });
+window.addEventListener("touchmove", handleTouchMove, { passive: false });
+window.addEventListener("touchend", handleTouchEnd, { passive: false, capture: true });
+window.addEventListener("touchcancel", handleTouchCancel, { passive: false, capture: true });
 window.addEventListener("pointermove", handlePointerMove, { passive: false });
 window.addEventListener("pointerup", handlePointerRelease, true);
 window.addEventListener("pointercancel", handlePointerCancel, true);
