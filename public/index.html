@@ -22,81 +22,139 @@
         </label>
       </div>
       <div class="row">
-        <button id="createBtn">Create Room</button>
-        <button id="joinBtn" class="ghost">Join Room</button>
+        <button id="createBtn" type="button">Create Room</button>
+        <button id="joinBtn" class="ghost" type="button">Join Room</button>
       </div>
       <p id="authError" class="error"></p>
     </section>
 
     <section class="card hidden" id="gameCard">
-      <div class="topline">
-        <div>
-          <h2>Room <span id="roomCode"></span></h2>
+      <div class="game-top">
+        <div class="room-meta">
+          <div class="room-line">
+            <h2>Room <span id="roomCode"></span></h2>
+            <span class="player-chip" id="playerBadge">Player</span>
+          </div>
           <p class="muted">Round <span id="roundBadge">0/0</span></p>
         </div>
-        <div id="timer" class="timer">00</div>
-      </div>
-
-      <div class="invite-wrap">
-        <input id="inviteLink" readonly />
-        <button id="copyLinkBtn" class="ghost">Copy Link</button>
-        <button id="shareBtn" class="ghost">Share</button>
-      </div>
-
-      <div class="qr-wrap">
-        <img id="qrImage" alt="Invite QR code" />
-      </div>
-
-      <div class="config-grid">
-        <label>
-          Round timer (seconds)
-          <input id="timerConfig" type="number" min="15" max="300" step="5" />
-        </label>
-        <label>
-          Max players
-          <input id="maxPlayersConfig" type="number" min="2" max="20" step="1" />
-        </label>
-        <label>
-          Min word letters
-          <input id="minWordConfig" type="number" min="2" max="10" step="1" />
-        </label>
-        <label>
-          Total rounds
-          <input id="totalRoundsConfig" type="number" min="1" max="20" step="1" />
-        </label>
-        <button id="saveSettingsBtn">Save Settings</button>
-        <button id="readyBtn" class="ghost">Ready</button>
-        <button id="mechanicsBtn" class="ghost">Game Mechanics</button>
-      </div>
-
-      <div class="board-wrap" id="boardWrap">
-        <svg id="pathSvg" class="path-svg"></svg>
-        <div id="board" class="board"></div>
-      </div>
-
-      <form id="wordForm" class="row">
-        <input id="wordInput" placeholder="Type or click tiles" autocomplete="off" />
-        <button id="clearPathBtn" class="ghost" type="button">Clear Path</button>
-        <button id="submitWordBtn" type="submit">Submit</button>
-      </form>
-
-      <div class="row controls">
-        <button id="startBtn">Start Round</button>
-        <span id="status" class="muted"></span>
-      </div>
-
-      <div class="boards">
-        <div>
-          <h3>Players</h3>
-          <ul id="playersList"></ul>
+        <div class="invite-wrap">
+          <input id="inviteLink" readonly />
+          <button id="copyLinkBtn" class="icon-btn ghost" type="button" aria-label="Copy invite link" title="Copy invite link">
+            <span class="icon-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10v10H9zM5 5h10v2H7v8H5z"/></svg>
+            </span>
+          </button>
+          <button id="shareBtn" class="icon-btn ghost" type="button" aria-label="Share invite" title="Share invite">
+            <span class="icon-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 8l-6 4 6 4V8zm-9 9h12v2H6zm0-12h12v2H6z"/></svg>
+            </span>
+          </button>
         </div>
-        <div>
-          <h3>Leaderboard</h3>
-          <ul id="leaderboard"></ul>
+      </div>
+
+      <div class="play-layout">
+        <div class="play-stage">
+          <aside class="play-side">
+            <div class="timer-card">
+              <div id="timer" class="timer">00</div>
+              <div class="icon-stack">
+                <button id="rotateBtn" class="icon-btn ghost" type="button" aria-label="Rotate board clockwise" title="Rotate board clockwise">
+                  <span class="icon-wrap">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V1l5 5-5 5V7a5 5 0 105 5h2a7 7 0 11-7-7z"/></svg>
+                  </span>
+                </button>
+                <button id="mechanicsBtn" class="icon-btn ghost" type="button" aria-label="Game mechanics" title="Game mechanics">
+                  <span class="icon-wrap">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                  </span>
+                </button>
+              </div>
+            </div>
+            <div class="qr-wrap">
+              <img id="qrImage" alt="Invite QR code" />
+            </div>
+          </aside>
+
+          <div class="board-column">
+            <div class="config-grid">
+              <label>
+                Round timer (seconds)
+                <input id="timerConfig" type="number" min="15" max="300" step="5" />
+              </label>
+              <label>
+                Max players
+                <input id="maxPlayersConfig" type="number" min="2" max="20" step="1" />
+              </label>
+              <label>
+                Min word letters
+                <input id="minWordConfig" type="number" min="2" max="10" step="1" />
+              </label>
+              <label>
+                Total rounds
+                <input id="totalRoundsConfig" type="number" min="1" max="20" step="1" />
+              </label>
+              <button id="saveSettingsBtn" type="button">Save</button>
+              <button id="readyBtn" class="ghost" type="button">Ready</button>
+            </div>
+
+            <div class="board-wrap rotate-0" id="boardWrap">
+              <svg id="pathSvg" class="path-svg"></svg>
+              <div id="board" class="board"></div>
+            </div>
+
+            <form id="wordForm" class="row word-row">
+              <input id="wordInput" placeholder="Type, tap, or drag across tiles" autocomplete="off" />
+              <button id="clearPathBtn" class="icon-btn ghost" type="button" aria-label="Clear path" title="Clear path">
+                <span class="icon-wrap">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19L19 6M6 6l13 13"/></svg>
+                </span>
+              </button>
+              <button id="submitWordBtn" type="submit">Submit</button>
+            </form>
+
+            <div class="row controls">
+              <button id="startBtn" type="button">Start Round</button>
+              <span id="status" class="muted"></span>
+            </div>
+          </div>
         </div>
-        <div>
-          <h3>Words Used (Round)</h3>
-          <ul id="wordsUsed"></ul>
+
+        <div class="boards-shell">
+          <div class="tabs" role="tablist" aria-label="Game panels">
+            <button class="tab-btn active" type="button" data-tab="players" aria-label="Players" title="Players">
+              <span class="icon-wrap">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.96 1.97 3.45V19h7v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+              </span>
+            </button>
+            <button class="tab-btn" type="button" data-tab="leaderboard" aria-label="Leaderboard" title="Leaderboard">
+              <span class="icon-wrap">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17H4V9h3zm6 0h-3V5h3zm6 0h-3v-7h3zM3 19h18v2H3z"/></svg>
+              </span>
+            </button>
+            <button class="tab-btn" type="button" data-tab="words" aria-label="Words found" title="Words found">
+              <span class="icon-wrap">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg>
+              </span>
+            </button>
+            <button class="tab-btn" type="button" data-tab="longest" aria-label="Longest words" title="Longest words">
+              <span class="icon-wrap">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h2v18H6zm10 0h2v18h-2zM10 8h4v2h-4zm0 6h4v2h-4z"/></svg>
+              </span>
+            </button>
+          </div>
+
+          <section class="tab-panel active" data-panel="players">
+            <ul id="playersList"></ul>
+          </section>
+          <section class="tab-panel" data-panel="leaderboard">
+            <ul id="leaderboard"></ul>
+          </section>
+          <section class="tab-panel" data-panel="words">
+            <ul id="wordsUsed"></ul>
+          </section>
+          <section class="tab-panel" data-panel="longest">
+            <ul id="longestWords"></ul>
+          </section>
         </div>
       </div>
     </section>
@@ -106,22 +164,20 @@
     <h3>Word Factory Mechanics</h3>
     <ul>
       <li>Board is 5x5, including occasional Qu tiles.</li>
-      <li>Build words using adjacent tiles (8 directions).</li>
-      <li>You cannot reuse the same tile in one word.</li>
-      <li>Words are validated with US English dictionary rules.</li>
+      <li>Tap tiles or press and trace to build a word path.</li>
+      <li>Words must use touching tiles in any direction.</li>
+      <li>The same tile cannot be reused in one word.</li>
+      <li>Release after tracing to auto-submit the word.</li>
       <li>Words used reset every new round.</li>
       <li>Scoring: 3-4 letters = 1, 5 = 2, 6 = 3, 7 = 5, 8+ = 11.</li>
     </ul>
     <form method="dialog" class="row">
-      <button>Close</button>
+      <button type="submit">Close</button>
     </form>
   </dialog>
 
-  <div id="ownerLabel" class="owner-label">attribution: elk-lab-jzion | v1.2.0</div>
-  
+  <div id="ownerLabel" class="owner-label">attribution: elk-lab-jzion | v1.3.0</div>
 
   <script src="/app.js"></script>
 </body>
 </html>
-
-

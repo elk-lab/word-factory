@@ -1,89 +1,82 @@
 ﻿# Word Factory Multiplayer
 
-Responsive web/mobile multiplayer word game with:
-- Room-based multiplayer
-- Host/admin controls (timer, max players, min word length)
-- Ready-up flow for members
-- Timed rounds + auto scoring + leaderboard
-- QR/link invites
-- US English word validation (offline dictionary + optional Webster fallback)
+Responsive web and mobile multiplayer Word Factory with a 5x5 board, timed rounds, room invites, host controls, and US English dictionary validation.
+
+## Version
+- `v1.3.0`
+- Attribution label: `elk-lab-jzion`
+
+## Highlights
+- 5x5 board with adjacency rules and `Qu` tiles
+- Tap-to-build and press-and-drag tracing with auto-submit on release
+- Host settings for timer, max players, minimum word length, and total rounds
+- Multi-round match scoring with leaderboard and longest-word tracking
+- Round-local used-word resets
+- QR and link invites
+- Offline local dictionary with optional Merriam-Webster fallback
 
 ## Requirements
 - Node.js LTS
-- npm (or use `npm.cmd` on Windows PowerShell if needed)
+- npm or `npm.cmd` on Windows PowerShell
 
 ## Quick Start (Windows PowerShell)
-1. Install dependencies (none required for runtime).
-2. Create local env:
+1. Create local env:
    - `Copy-Item .env.example .env`
-3. (Optional) Add Webster key in `.env`:
-   - `WEBSTER_API_KEY=your_key_here`
-4. Import large dictionary:
+2. Optional: add `WEBSTER_API_KEY` in `.env`
+3. Import a large dictionary:
    - `npm.cmd run dict:import`
-5. Start server:
+4. Start server:
    - `npm.cmd start`
-6. Open:
+5. Open:
    - `http://localhost:3000`
 
-## npm PowerShell Script Policy Fix
-If you see `running scripts is disabled`:
-- Temporary (current shell):
+## npm PowerShell Policy Fix
+If PowerShell blocks npm scripts:
+- Temporary:
   - `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
-- Persistent (current user):
+- Persistent for current user:
   - `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
-- Or bypass PowerShell script shim:
+- Or use:
   - `npm.cmd -v`
+  - `npm.cmd start`
 
-## Configuration (.env)
-- `PORT` default `3000`
-- `WEBSTER_API_KEY` optional Merriam-Webster Collegiate API key
-
-Example:
+## Environment
 ```env
 PORT=3000
 WEBSTER_API_KEY=
 ```
 
 ## Dictionary Validation
-Priority order:
-1. Local file `data/words_en_us.txt` (offline)
-2. Merriam-Webster API fallback (if `WEBSTER_API_KEY` is set)
+Validation order:
+1. `data/words_en_us.txt`
+2. Merriam-Webster Collegiate API when `WEBSTER_API_KEY` is set
 
 Import script:
 - `scripts/import-dictionary.ps1`
-- Downloads a large word list, normalizes to uppercase A-Z words, de-duplicates.
 
 ## Scripts
-- `npm run start` - start server
-- `npm run dict:import` - import large dictionary to `data/words_en_us.txt`
+- `npm run start`
+- `npm run dict:import`
 
-## Security Notes
-Current protections include:
-- Per-player session token checks for game actions
-- Input validation and safe clamping on settings
+## Security
+- Per-player session token checks
+- Input validation and settings clamping
 - Request rate limiting
-- Security headers (CSP, frame-deny, nosniff, etc.)
+- Security headers (CSP, frame deny, nosniff)
 
-For cloud deployment also use:
-- HTTPS/TLS via reverse proxy (Nginx/Caddy/Cloudflare)
-- Firewall and process isolation
-- Secret management for API keys
-
-## Git Safety
-- `.env` is ignored in `.gitignore`
-- `.env.example` is committed for team setup
-
-## Project Structure
-- `server.js` - backend API + game state + security controls
-- `public/` - frontend UI
-- `data/` - local dictionary file
-- `scripts/` - dictionary import utility
-
-## Deploy on Render
-1. Push this repo to GitHub.
-2. In Render dashboard: New + -> Blueprint.
-3. Select this repository (Render detects `render.yaml`).
-4. In environment variables, set `WEBSTER_API_KEY` only if you want Webster fallback.
+## Render Deploy
+1. Push repo to GitHub.
+2. In Render: `New +` -> `Blueprint`.
+3. Select this repo.
+4. Set `WEBSTER_API_KEY` only if needed.
 5. Deploy.
 
-Render URL will be available after first successful deploy.
+## VPS Notes
+- Docker-friendly deployment works well behind Traefik or another reverse proxy.
+- For Traefik, attach the app container to the proxy network and route by host rule.
+
+## Project Structure
+- `server.js` - backend API, scoring, match flow, validation
+- `public/` - UI and interaction logic
+- `data/` - local dictionary file
+- `scripts/` - dictionary import tooling

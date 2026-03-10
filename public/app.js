@@ -9,6 +9,9 @@ const state = {
   source: null,
   qrFailed: false,
   selectedPath: [],
+  boardRotation: 0,
+  pointerActive: false,
+  pointerMoved: false,
 };
 
 const ui = {
@@ -21,6 +24,7 @@ const ui = {
   authError: $("authError"),
   roomCode: $("roomCode"),
   roundBadge: $("roundBadge"),
+  playerBadge: $("playerBadge"),
   inviteLink: $("inviteLink"),
   copyLinkBtn: $("copyLinkBtn"),
   shareBtn: $("shareBtn"),
@@ -32,6 +36,7 @@ const ui = {
   totalRoundsConfig: $("totalRoundsConfig"),
   saveSettingsBtn: $("saveSettingsBtn"),
   readyBtn: $("readyBtn"),
+  rotateBtn: $("rotateBtn"),
   mechanicsBtn: $("mechanicsBtn"),
   mechanicsDialog: $("mechanicsDialog"),
   boardWrap: $("boardWrap"),
@@ -46,7 +51,10 @@ const ui = {
   playersList: $("playersList"),
   leaderboard: $("leaderboard"),
   wordsUsed: $("wordsUsed"),
+  longestWords: $("longestWords"),
   ownerLabel: $("ownerLabel"),
+  tabButtons: Array.from(document.querySelectorAll(".tab-btn")),
+  tabPanels: Array.from(document.querySelectorAll(".tab-panel")),
 };
 
 const params = new URLSearchParams(location.search);
@@ -62,24 +70,44 @@ function setAuthError(msg) {
   ui.authError.textContent = msg || "";
 }
 
+function cleanWord(value) {
+  return String(value || "").trim().toUpperCase().replace(/[^A-Z]/g, "");
+}
+
 function currentPlayer() {
   return (state.room?.players || []).find((p) => p.id === state.playerId) || null;
+}
+
+function minLettersRequired() {
+  return state.room?.settings?.minWordLength || 3;
 }
 
 function isAdjacent(a, b) {
   return Math.abs(a.r - b.r) <= 1 && Math.abs(a.c - b.c) <= 1 && !(a.r === b.r && a.c === b.c);
 }
 
+function setActiveTab(name) {
+  ui.tabButtons.forEach((button) => button.classList.toggle("active", button.dataset.tab === name));
+  ui.tabPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === name));
+}
+
 function clearPath() {
   state.selectedPath = [];
   ui.wordInput.value = "";
-  renderPath();
   renderSelectedTiles();
+  renderPath();
 }
 
 function pathWord() {
   if (!state.room?.round?.grid) return "";
   return state.selectedPath.map((cell) => state.room.round.grid[cell.r][cell.c]).join("");
+}
+
+function renderSelectedTiles() {
+  const selected = new Set(state.selectedPath.map((cell) => `${cell.r},${cell.c}`));
+  ui.board.querySelectorAll(".tile").forEach((tile) => {
+    tile.classList.toggle("selected", selected.has(`${tile.dataset.r},${tile.dataset.c}`));
+  });
 }
 
 function renderPath() {
@@ -89,8 +117,8 @@ function renderPath() {
   if (state.selectedPath.length < 2) return;
 
   for (let i = 0; i < state.selectedPath.length - 1; i += 1) {
-    const a = document.querySelector(`[data-r='${state.selectedPath[i].r}'][data-c='${state.selectedPath[i].c}']`);
-    const b = document.querySelector(`[data-r='${state.selectedPath[i + 1].r}'][data-c='${state.selectedPath[i + 1].c}']`);
+    const a = ui.board.querySelector(`[data-r='${state.selectedPath[i].r}'][data-c='${state.selectedPath[i].c}']`);
+    const b = ui.board.querySelector(`[data-r='${state.selectedPath[i + 1].r}'][data-c='${state.selectedPath[i + 1].c}']`);
     if (!a || !b) continue;
     const ar = a.getBoundingClientRect();
     const br = b.getBoundingClientRect();
@@ -111,36 +139,45 @@ function renderPath() {
   }
 }
 
-function renderSelectedTiles() {
-  const selected = new Set(state.selectedPath.map((p) => `${p.r},${p.c}`));
-  ui.board.querySelectorAll(".tile").forEach((tile) => {
-    const key = `${tile.dataset.r},${tile.dataset.c}`;
-    tile.classList.toggle("selected", selected.has(key));
-  });
-}
-
-function selectTile(r, c) {
-  if (!state.room?.round?.active) return;
+function applyTileToPath(r, c) {
+  if (!state.room?.round?.active) return false;
   const next = { r, c };
   const prev = state.selectedPath[state.selectedPath.length - 1];
-  const idx = state.selectedPath.findIndex((p) => p.r === r && p.c === c);
+  const idx = state.selectedPath.findIndex((cell) => cell.r === r && cell.c === c);
 
-  if (idx >= 0) {
-    const isLast = idx === state.selectedPath.length - 1;
-    if (isLast) {
-      state.selectedPath.pop();
-    } else {
-      return;
-    }
-  } else if (!prev || isAdjacent(prev, next)) {
+  if (!prev) {
+    state.selectedPath = [next];
+  } else if (idx === state.selectedPath.length - 1) {
+    state.selectedPath.pop();
+  } else if (idx >= 0) {
+    return false;
+  } else if (isAdjacent(prev, next)) {
     state.selectedPath.push(next);
   } else {
-    return;
+    return false;
   }
 
   ui.wordInput.value = pathWord();
   renderSelectedTiles();
   renderPath();
+  return true;
+}
+
+async function submitCurrentWord() {
+  const word = cleanWord(ui.wordInput.value);
+  if (!word || word.length < minLettersRequired()) return;
+  try {
+    const res = await api("/api/submit-word", {
+      roomId: state.roomId,
+      playerId: state.playerId,
+      token: state.token,
+      word,
+    });
+    clearPath();
+    ui.status.textContent = `+${res.points} points for ${word}`;
+  } catch (err) {
+    ui.status.textContent = err.message;
+  }
 }
 
 async function api(path, payload) {
@@ -160,25 +197,73 @@ function renderBoard(grid) {
     ui.pathSvg.innerHTML = "";
     return;
   }
+
   ui.board.innerHTML = grid
-    .map((row, r) => row.map((token, c) => `<button type='button' class='tile' data-r='${r}' data-c='${c}'>${token}</button>`).join(""))
+    .map((row, r) => row.map((token, c) => `<button type="button" class="tile" data-r="${r}" data-c="${c}">${token}</button>`).join(""))
     .join("");
 
   ui.board.querySelectorAll(".tile").forEach((tile) => {
-    tile.addEventListener("click", () => selectTile(Number(tile.dataset.r), Number(tile.dataset.c)));
+    tile.addEventListener("pointerdown", (event) => {
+      if (!state.room?.round?.active) return;
+      event.preventDefault();
+      state.pointerActive = true;
+      state.pointerMoved = false;
+      const r = Number(tile.dataset.r);
+      const c = Number(tile.dataset.c);
+      const last = state.selectedPath[state.selectedPath.length - 1];
+      const canContinue =
+        last &&
+        ((isAdjacent(last, { r, c }) && !state.selectedPath.some((cell) => cell.r === r && cell.c === c)) ||
+          (last.r === r && last.c === c));
+      if (!canContinue) clearPath();
+      applyTileToPath(r, c);
+    });
   });
 
   renderSelectedTiles();
   renderPath();
 }
 
+function renderPlayers(players) {
+  ui.playersList.innerHTML = players.length
+    ? players.map((player) => `<li>${player.name}${player.isHost ? " (Host)" : ""} | ${player.ready ? "Ready" : "Not Ready"}</li>`).join("")
+    : "<li>No players yet</li>";
+}
+
+function renderLeaderboard(leaderboard) {
+  ui.leaderboard.innerHTML = leaderboard.length
+    ? leaderboard.map((player) => `<li>#${player.rank} ${player.name} <strong>${player.score}</strong></li>`).join("")
+    : "<li>No players yet</li>";
+}
+
+function renderRoundWords(words) {
+  ui.wordsUsed.innerHTML = words.length
+    ? words.slice().reverse().map((word) => `<li>${word}</li>`).join("")
+    : "<li>No words yet this round</li>";
+}
+
+function renderLongestWords(longestWords) {
+  ui.longestWords.innerHTML = longestWords.length
+    ? longestWords
+        .map((entry) => `<li><strong>${entry.word}</strong><span class="list-sub"><em>${entry.playerName}</em> | round ${entry.round}</span></li>`)
+        .join("")
+    : "<li>No longest words recorded yet</li>";
+}
+
 function hydrateRoom(room) {
   const previousRound = state.room?.match?.currentRound;
   state.room = room;
-  ui.roomCode.textContent = room.roomId;
-  ui.roundBadge.textContent = `${room.match.currentRound || room.match.completedRounds}/${room.match.totalRounds}`;
 
-  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.2.0";
+  const me = currentPlayer();
+  const matchOver = Boolean(room.match?.over);
+  const roundActive = room.round.active;
+  const minLetters = room.settings?.minWordLength || 3;
+  const meReady = Boolean(me?.ready);
+
+  ui.roomCode.textContent = room.roomId;
+  ui.playerBadge.textContent = me?.name || "Player";
+  ui.roundBadge.textContent = `${room.match.currentRound || room.match.completedRounds}/${room.match.totalRounds}`;
+  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.3.0";
 
   const link = `${location.origin}?room=${encodeURIComponent(room.roomId)}`;
   ui.inviteLink.value = link;
@@ -190,33 +275,16 @@ function hydrateRoom(room) {
   ui.maxPlayersConfig.value = room.settings?.maxPlayers || 8;
   ui.minWordConfig.value = room.settings?.minWordLength || 3;
   ui.totalRoundsConfig.value = room.settings?.totalRounds || 3;
-
   ui.timer.textContent = String(room.round.remaining || room.settings.roundSeconds || 0).padStart(2, "0");
 
   const roundChanged = previousRound !== undefined && previousRound !== room.match.currentRound;
-  if (roundChanged || !room.round.active) clearPath();
+  if (roundChanged || !roundActive) clearPath();
+
   renderBoard(room.round.grid);
-
-  ui.playersList.innerHTML = room.players.length
-    ? room.players
-        .map((p) => `<li>${p.name}${p.isHost ? " (Host)" : ""} | ${p.ready ? "Ready" : "Not Ready"}</li>`)
-        .join("")
-    : "<li>No players yet</li>";
-
-  ui.leaderboard.innerHTML = room.leaderboard.length
-    ? room.leaderboard.map((p) => `<li>#${p.rank} ${p.name} <strong>${p.score}</strong></li>`).join("")
-    : "<li>No players yet</li>";
-
-  const words = room.round.usedWords || [];
-  ui.wordsUsed.innerHTML = words.length
-    ? words.slice().reverse().map((w) => `<li>${w}</li>`).join("")
-    : "<li>No words yet this round</li>";
-
-  const roundActive = room.round.active;
-  const me = currentPlayer();
-  const meReady = Boolean(me?.ready);
-  const minLetters = room.settings?.minWordLength || 3;
-  const matchOver = Boolean(room.match?.over);
+  renderPlayers(room.players);
+  renderLeaderboard(room.leaderboard);
+  renderRoundWords(room.round.usedWords || []);
+  renderLongestWords(room.longestWords || []);
 
   ui.startBtn.textContent = matchOver ? "Match Ended" : `Start Round ${room.match.completedRounds + 1}`;
   ui.startBtn.disabled =
@@ -270,8 +338,7 @@ function connectEvents() {
   if (state.source) state.source.close();
   state.source = new EventSource(`/api/events?roomId=${encodeURIComponent(state.roomId)}`);
   state.source.addEventListener("state", (event) => {
-    const data = JSON.parse(event.data);
-    hydrateRoom(data);
+    hydrateRoom(JSON.parse(event.data));
   });
 }
 
@@ -335,54 +402,52 @@ async function startRound() {
   });
 }
 
-async function submitWord(event) {
-  event.preventDefault();
-  const word = cleanWord(ui.wordInput.value);
-  if (!word) return;
-  try {
-    const res = await api("/api/submit-word", {
-      roomId: state.roomId,
-      playerId: state.playerId,
-      token: state.token,
-      word,
-    });
-    clearPath();
-    ui.status.textContent = `+${res.points} points for ${word}`;
-  } catch (err) {
-    ui.status.textContent = err.message;
-  }
+ui.boardWrap.addEventListener("pointermove", (event) => {
+  if (!state.pointerActive || !state.room?.round?.active) return;
+  const target = document.elementFromPoint(event.clientX, event.clientY);
+  const tile = target?.closest?.(".tile");
+  if (!tile || !ui.board.contains(tile)) return;
+  const changed = applyTileToPath(Number(tile.dataset.r), Number(tile.dataset.c));
+  if (changed) state.pointerMoved = true;
+});
+
+async function finishPointerTrace() {
+  if (!state.pointerActive) return;
+  const shouldAutoSubmit = state.pointerMoved && cleanWord(ui.wordInput.value).length >= minLettersRequired();
+  state.pointerActive = false;
+  state.pointerMoved = false;
+  if (shouldAutoSubmit) await submitCurrentWord();
 }
 
-function cleanWord(v) {
-  return String(v || "").trim().toUpperCase().replace(/[^A-Z]/g, "");
-}
+ui.boardWrap.addEventListener("pointerup", () => {
+  finishPointerTrace().catch((err) => {
+    ui.status.textContent = err.message;
+  });
+});
+
+ui.boardWrap.addEventListener("pointercancel", () => {
+  state.pointerActive = false;
+  state.pointerMoved = false;
+});
 
 ui.createBtn.addEventListener("click", () => createRoom().catch((err) => setAuthError(err.message)));
 ui.joinBtn.addEventListener("click", () => joinRoom().catch((err) => setAuthError(err.message)));
-
-ui.saveSettingsBtn.addEventListener("click", () => {
-  saveSettings().catch((err) => {
-    ui.status.textContent = err.message;
-  });
-});
-
-ui.readyBtn.addEventListener("click", () => {
-  const me = currentPlayer();
-  const next = !Boolean(me?.ready);
-  setReady(next).catch((err) => {
-    ui.status.textContent = err.message;
-  });
-});
-
-ui.startBtn.addEventListener("click", () => {
-  startRound().catch((err) => {
-    ui.status.textContent = err.message;
-  });
-});
-
-ui.wordForm.addEventListener("submit", submitWord);
+ui.saveSettingsBtn.addEventListener("click", () => saveSettings().catch((err) => { ui.status.textContent = err.message; }));
+ui.readyBtn.addEventListener("click", () => setReady(!Boolean(currentPlayer()?.ready)).catch((err) => { ui.status.textContent = err.message; }));
+ui.startBtn.addEventListener("click", () => startRound().catch((err) => { ui.status.textContent = err.message; }));
 ui.clearPathBtn.addEventListener("click", clearPath);
+ui.rotateBtn.addEventListener("click", () => {
+  state.boardRotation = (state.boardRotation + 1) % 4;
+  ui.boardWrap.className = `board-wrap rotate-${state.boardRotation}`;
+  requestAnimationFrame(renderPath);
+});
 ui.mechanicsBtn.addEventListener("click", () => ui.mechanicsDialog.showModal());
+ui.tabButtons.forEach((button) => button.addEventListener("click", () => setActiveTab(button.dataset.tab)));
+
+ui.wordForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitCurrentWord();
+});
 
 window.addEventListener("resize", () => renderPath());
 
@@ -408,5 +473,4 @@ ui.shareBtn.addEventListener("click", async () => {
     ui.status.textContent = "Share cancelled";
   }
 });
-
 

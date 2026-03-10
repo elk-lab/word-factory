@@ -20,7 +20,8 @@ function loadEnvFile(filePath) {
 
 loadEnvFile(path.join(__dirname, ".env"));
 
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
+const APP_ATTRIBUTION = `attribution: elk-lab-jzion | v${APP_VERSION}`;
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const DICT_FILE = path.join(__dirname, "data", "words_en_us.txt");
@@ -210,7 +211,7 @@ function roomSnapshot(room) {
   const now = Date.now();
   const remaining = room.round.active ? Math.max(0, Math.ceil((room.round.endsAt - now) / 1000)) : 0;
   return {
-    app: { version: APP_VERSION, attribution: "attribution: elk-lab-jzion | v1.2.0" },
+    app: { version: APP_VERSION, attribution: APP_ATTRIBUTION },
     roomId: room.id,
     hostId: room.hostId,
     settings: {
@@ -226,6 +227,7 @@ function roomSnapshot(room) {
       totalRounds: room.settings.totalRounds,
       over: room.match.over,
     },
+    longestWords: room.match.longestWords.slice(0, 10),
     players: room.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -354,6 +356,7 @@ function createRoom(name) {
       currentRound: 0,
       completedRounds: 0,
       over: false,
+      longestWords: [],
     },
     players: [{ id: hostPid, token: hostToken, name: name || "Host", score: 0, ready: true }],
     round: {
@@ -414,7 +417,7 @@ async function routeApi(req, res, url) {
 
   if (req.method === "GET" && url.pathname === "/api/meta") {
     return sendJson(res, 200, {
-      app: { version: APP_VERSION, attribution: "attribution: elk-lab-jzion | v1.2.0" },
+      app: { version: APP_VERSION, attribution: APP_ATTRIBUTION },
       dictionary: {
         enabled: dictionary.size > 0 || Boolean(WEBSTER_API_KEY),
         locale: "en-US",
@@ -609,6 +612,9 @@ async function routeApi(req, res, url) {
     const points = scoreWord(word);
     room.round.usedWords.add(word);
     room.round.wordLog.push({ playerId: pid, playerName: player.name, word, points, t: Date.now() });
+    room.match.longestWords.push({ word, playerName: player.name, round: room.match.currentRound, length: word.length });
+    room.match.longestWords.sort((a, b) => b.length - a.length || a.word.localeCompare(b.word));
+    room.match.longestWords = room.match.longestWords.filter((entry, index, all) => index === all.findIndex((item) => item.word === entry.word && item.playerName === entry.playerName));
     player.score += points;
     emitRoom(room);
     return sendJson(res, 200, { ok: true, points, state: roomSnapshot(room) });
@@ -633,4 +639,7 @@ server.listen(PORT, () => {
   console.log(`Local dictionary loaded: ${dictionary.size} words`);
   console.log(`Webster fallback enabled: ${Boolean(WEBSTER_API_KEY)}`);
 });
+
+
+
 
