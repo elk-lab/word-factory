@@ -20,7 +20,7 @@ function loadEnvFile(filePath) {
 
 loadEnvFile(path.join(__dirname, ".env"));
 
-const APP_VERSION = "1.4.3";
+const APP_VERSION = "1.4.4";
 const APP_ATTRIBUTION = `attribution: elk-lab-jzion | v${APP_VERSION}`;
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -675,6 +675,7 @@ server.listen(PORT, () => {
   console.log(`Local dictionary loaded: ${dictionary.size} words`);
   console.log(`Webster fallback enabled: ${Boolean(WEBSTER_API_KEY)}`);
 });
+
 
 
 

@@ -136,7 +136,7 @@ button:disabled {
   flex-wrap: wrap;
 }
 
-.word-row {
+ .word-row {
   margin-top: 0.55rem;
 }
 
@@ -653,4 +653,10 @@ li:last-child {
 }
 
 
+
+
+
+.path-action-btn {
+  min-width: 84px;
+}
 

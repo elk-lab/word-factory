@@ -16,8 +16,6 @@ const state = {
   pointerId: null,
   touchActive: false,
   touchMoved: false,
-  touchIdentifier: null,
-  touchSubmitTap: false,
   roundFocusToken: "",
 };
 
@@ -51,6 +49,7 @@ const ui = {
   pathSvg: $("pathSvg"),
   board: $("board"),
   pathPreview: $("pathPreview"),
+  submitPathBtn: $("submitPathBtn"),
   clearPathBtn: $("clearPathBtn"),
   startBtn: $("startBtn"),
   status: $("status"),
@@ -113,6 +112,10 @@ function isAdjacent(a, b) {
   return Math.abs(a.r - b.r) <= 1 && Math.abs(a.c - b.c) <= 1 && !(a.r === b.r && a.c === b.c);
 }
 
+function isTouchMode() {
+  return window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+}
+
 function setActiveTab(name) {
   ui.tabButtons.forEach((button) => button.classList.toggle("active", button.dataset.tab === name));
   ui.tabPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === name));
@@ -125,10 +128,6 @@ function pathWord() {
 
 function isMobileView() {
   return window.matchMedia("(max-width: 760px)").matches;
-}
-
-function usesTouchInput(event) {
-  return event?.pointerType === "touch";
 }
 
 function focusBoardForRound(force = false) {
@@ -162,13 +161,20 @@ function renderPathPreview() {
   ui.pathPreview.classList.toggle("empty", !text);
 }
 
+function updatePathButtons(roundActive) {
+  const hasPath = state.selectedPath.length > 0;
+  const canSubmit = hasPath && cleanWord(pathWord()).length >= minLettersRequired() && roundActive;
+  ui.submitPathBtn.disabled = !canSubmit;
+  ui.clearPathBtn.disabled = !hasPath;
+}
+
 function clearPath() {
   state.selectedPath = [];
   state.pointerSubmitTap = false;
-  state.touchSubmitTap = false;
   renderPathPreview();
   renderSelectedTiles();
   renderPath();
+  updatePathButtons(Boolean(state.room?.round?.phase === "active"));
 }
 
 function renderSelectedTiles() {
@@ -230,6 +236,7 @@ function startPath(r, c) {
   renderPathPreview();
   renderSelectedTiles();
   renderPath();
+  updatePathButtons(Boolean(state.room?.round?.phase === "active"));
 }
 
 function trimPathTo(index) {
@@ -241,6 +248,7 @@ function trimPathTo(index) {
   renderPathPreview();
   renderSelectedTiles();
   renderPath();
+  updatePathButtons(Boolean(state.room?.round?.phase === "active"));
   return true;
 }
 
@@ -259,6 +267,7 @@ function addToPath(r, c) {
   renderPathPreview();
   renderSelectedTiles();
   renderPath();
+  updatePathButtons(Boolean(state.room?.round?.phase === "active"));
   return true;
 }
 
@@ -298,16 +307,15 @@ async function api(path, payload) {
   return data;
 }
 
-function applyTileSelection(tile) {
+function applyTileSelection(tile, allowTapSubmit = true) {
   if (!tile || state.room?.round?.phase !== "active") return false;
   const r = Number(tile.dataset.r);
   const c = Number(tile.dataset.c);
   const last = state.selectedPath[state.selectedPath.length - 1];
   const currentWord = cleanWord(pathWord());
 
-  if (last && last.r === r && last.c === c && currentWord.length >= minLettersRequired()) {
+  if (allowTapSubmit && last && last.r === r && last.c === c && currentWord.length >= minLettersRequired()) {
     state.pointerSubmitTap = true;
-    state.touchSubmitTap = true;
     return true;
   }
 
@@ -342,14 +350,14 @@ function getTileFromPoint(clientX, clientY) {
 }
 
 function handleTilePointerDown(event, tile) {
-  if (usesTouchInput(event) || state.room?.round?.phase !== "active") return;
+  if (isTouchMode() || state.room?.round?.phase !== "active") return;
   event.preventDefault();
   state.pointerActive = true;
   state.pointerMoved = false;
   state.pointerSubmitTap = false;
   state.pointerId = event.pointerId;
   if (ui.boardWrap.setPointerCapture) ui.boardWrap.setPointerCapture(event.pointerId);
-  applyTileSelection(tile);
+  applyTileSelection(tile, true);
 }
 
 function renderBoard(grid) {
@@ -370,6 +378,7 @@ function renderBoard(grid) {
   renderPathPreview();
   renderSelectedTiles();
   renderPath();
+  updatePathButtons(Boolean(state.room?.round?.phase === "active"));
 }
 
 function renderPlayers(players) {
@@ -417,7 +426,7 @@ function hydrateRoom(room) {
   ui.roomCode.textContent = room.roomId;
   ui.playerBadge.textContent = me?.name || "Player";
   ui.roundBadge.textContent = `${room.match.currentRound || room.match.completedRounds}/${room.match.totalRounds}`;
-  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.4.3";
+  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.4.4";
 
   const link = `${location.origin}?room=${encodeURIComponent(room.roomId)}`;
   ui.inviteLink.value = link;
@@ -467,7 +476,7 @@ function hydrateRoom(room) {
 
   ui.readyBtn.disabled = state.host || roundStaging || matchOver;
   ui.readyBtn.textContent = meReady ? "Unready" : "Ready";
-  ui.clearPathBtn.disabled = !roundStaging && state.selectedPath.length === 0;
+  updatePathButtons(roundLive);
 
   if (matchOver) {
     ui.status.textContent = "Match over. Final leaderboard is locked.";
@@ -580,15 +589,15 @@ async function finishPointerTrace() {
 }
 
 function handlePointerMove(event) {
-  if (usesTouchInput(event) || !state.pointerActive || event.pointerId !== state.pointerId || state.room?.round?.phase !== "active") return;
+  if (isTouchMode() || !state.pointerActive || event.pointerId !== state.pointerId || state.room?.round?.phase !== "active") return;
   const tile = getTileFromPoint(event.clientX, event.clientY);
   if (!tile) return;
-  const changed = applyTileSelection(tile);
+  const changed = applyTileSelection(tile, true);
   if (changed) state.pointerMoved = true;
 }
 
 function handlePointerRelease(event) {
-  if (usesTouchInput(event) || state.pointerId === null || event.pointerId !== state.pointerId) return;
+  if (isTouchMode() || state.pointerId === null || event.pointerId !== state.pointerId) return;
   if (ui.boardWrap.hasPointerCapture?.(event.pointerId)) {
     ui.boardWrap.releasePointerCapture(event.pointerId);
   }
@@ -598,7 +607,7 @@ function handlePointerRelease(event) {
 }
 
 function handlePointerCancel(event) {
-  if (usesTouchInput(event)) return;
+  if (isTouchMode()) return;
   if (state.pointerId !== null && event.pointerId !== state.pointerId) return;
   state.pointerActive = false;
   state.pointerMoved = false;
@@ -606,52 +615,36 @@ function handlePointerCancel(event) {
   state.pointerId = null;
 }
 
-function activeTouchFromList(touchList) {
-  if (state.touchIdentifier === null) return null;
-  for (const touch of touchList) {
-    if (touch.identifier === state.touchIdentifier) return touch;
-  }
-  return null;
-}
-
 function handleTouchStart(event) {
-  if (state.room?.round?.phase !== "active") return;
-  const touch = event.changedTouches[0];
+  if (!isTouchMode() || state.room?.round?.phase !== "active") return;
+  const touch = event.touches[0] || event.changedTouches[0];
   if (!touch) return;
-  const tile = event.target.closest?.(".tile") || getTileFromPoint(touch.clientX, touch.clientY);
+  const tile = getTileFromPoint(touch.clientX, touch.clientY);
   if (!tile) return;
   event.preventDefault();
   state.touchActive = true;
   state.touchMoved = false;
-  state.touchIdentifier = touch.identifier;
   state.pointerSubmitTap = false;
-  state.touchSubmitTap = false;
-  applyTileSelection(tile);
+  applyTileSelection(tile, false);
 }
 
 function handleTouchMove(event) {
-  if (!state.touchActive || state.room?.round?.phase !== "active") return;
-  const touch = activeTouchFromList(event.touches);
+  if (!isTouchMode() || !state.touchActive || state.room?.round?.phase !== "active") return;
+  const touch = event.touches[0];
   if (!touch) return;
   event.preventDefault();
   const tile = getTileFromPoint(touch.clientX, touch.clientY);
   if (!tile) return;
-  const changed = applyTileSelection(tile);
+  const changed = applyTileSelection(tile, false);
   if (changed) state.touchMoved = true;
 }
 
 function handleTouchEnd(event) {
-  if (!state.touchActive) return;
-  const touch = activeTouchFromList(event.changedTouches);
-  if (!touch) return;
+  if (!isTouchMode() || !state.touchActive) return;
   event.preventDefault();
-  const shouldAutoSubmit = cleanWord(pathWord()).length >= minLettersRequired() && (state.touchMoved || state.touchSubmitTap);
+  const shouldAutoSubmit = cleanWord(pathWord()).length >= minLettersRequired() && state.touchMoved;
   state.touchActive = false;
   state.touchMoved = false;
-  state.touchIdentifier = null;
-  state.pointerSubmitTap = false;
-  state.touchSubmitTap = false;
-  state.touchSubmitTap = false;
   if (shouldAutoSubmit) {
     submitCurrentWord().catch((err) => {
       notify(err.message, "error");
@@ -659,24 +652,16 @@ function handleTouchEnd(event) {
   }
 }
 
-function handleTouchCancel(event) {
-  if (!state.touchActive) return;
-  const touch = activeTouchFromList(event.changedTouches);
-  if (!touch) return;
+function handleTouchCancel() {
+  if (!isTouchMode()) return;
   state.touchActive = false;
   state.touchMoved = false;
-  state.touchIdentifier = null;
-  state.pointerSubmitTap = false;
-  state.touchSubmitTap = false;
 }
 
 ui.boardWrap.addEventListener("pointermove", handlePointerMove, { passive: false });
 ui.boardWrap.addEventListener("pointerup", handlePointerRelease);
 ui.boardWrap.addEventListener("lostpointercapture", handlePointerRelease);
 ui.boardWrap.addEventListener("touchstart", handleTouchStart, { passive: false });
-ui.boardWrap.addEventListener("touchmove", handleTouchMove, { passive: false });
-ui.boardWrap.addEventListener("touchend", handleTouchEnd, { passive: false });
-ui.boardWrap.addEventListener("touchcancel", handleTouchCancel, { passive: false });
 window.addEventListener("touchmove", handleTouchMove, { passive: false });
 window.addEventListener("touchend", handleTouchEnd, { passive: false, capture: true });
 window.addEventListener("touchcancel", handleTouchCancel, { passive: false, capture: true });
@@ -689,6 +674,7 @@ ui.joinBtn.addEventListener("click", () => joinRoom().catch((err) => setAuthErro
 ui.saveSettingsBtn.addEventListener("click", () => saveSettings().catch((err) => { notify(err.message, "error"); }));
 ui.readyBtn.addEventListener("click", () => setReady(!Boolean(currentPlayer()?.ready)).catch((err) => { notify(err.message, "error"); }));
 ui.startBtn.addEventListener("click", () => startRound().catch((err) => { notify(err.message, "error"); }));
+ui.submitPathBtn.addEventListener("click", () => submitCurrentWord().catch((err) => { notify(err.message, "error"); }));
 ui.clearPathBtn.addEventListener("click", clearPath);
 ui.rotateBtn.addEventListener("click", () => {
   state.boardRotation = (state.boardRotation + 1) % 4;

@@ -3,7 +3,7 @@
 Word Factory is a responsive multiplayer word-building game built around a 5x5 tile grid. Players join the same room, wait until everyone is ready, and compete across timed rounds to build valid American English words from adjacent tiles. The game supports desktop and mobile play, QR or link invites, offline dictionary validation, and multi-round automatic scoring.
 
 ## Version
-- Current version: `v1.4.3`
+- Current version: `v1.4.4`
 - Attribution: `elk-lab-jzion`
 
 ## Features
@@ -142,5 +142,6 @@ For public deployments, still use HTTPS/TLS and standard VPS hardening.
 
 ## Attribution
 Word Factory by `elk-lab-jzion`
+
 
 
