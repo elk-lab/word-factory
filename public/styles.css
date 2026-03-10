@@ -35,6 +35,7 @@ body {
 body.round-active {
   overflow: hidden;
   touch-action: none;
+  overscroll-behavior: none;
 }
 
 .app-shell {
@@ -314,7 +315,7 @@ button:disabled {
   pointer-events: none;
 }
 
-.board {
+\.board {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.42rem;
@@ -323,6 +324,8 @@ button:disabled {
   border: 1px solid #314a73;
   border-radius: 14px;
   touch-action: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .tile {
@@ -337,6 +340,7 @@ button:disabled {
   border: 1px solid #ffe76a;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .rotate-1 .tile {
@@ -647,3 +651,5 @@ li:last-child {
     font-size: 0.68rem;
   }
 }
+
+

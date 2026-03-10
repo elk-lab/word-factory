@@ -20,7 +20,7 @@ function loadEnvFile(filePath) {
 
 loadEnvFile(path.join(__dirname, ".env"));
 
-const APP_VERSION = "1.4.1";
+const APP_VERSION = "1.4.2";
 const APP_ATTRIBUTION = `attribution: elk-lab-jzion | v${APP_VERSION}`;
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -84,12 +84,13 @@ function randomLetter() {
   return LETTER_BAG[Math.floor(Math.random() * LETTER_BAG.length)];
 }
 
-function randomTile() {
-  return Math.random() < 0.045 ? "QU" : randomLetter();
-}
-
 function createGrid(size = GRID_SIZE) {
-  return Array.from({ length: size }, () => Array.from({ length: size }, () => randomTile()));
+  const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => randomLetter()));
+  const quIndex = Math.floor(Math.random() * size * size);
+  const row = Math.floor(quIndex / size);
+  const col = quIndex % size;
+  grid[row][col] = "QU";
+  return grid;
 }
 
 function cleanWord(word) {
@@ -674,4 +675,6 @@ server.listen(PORT, () => {
   console.log(`Local dictionary loaded: ${dictionary.size} words`);
   console.log(`Webster fallback enabled: ${Boolean(WEBSTER_API_KEY)}`);
 });
+
+
 

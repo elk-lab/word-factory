@@ -14,6 +14,9 @@ const state = {
   pointerMoved: false,
   pointerSubmitTap: false,
   pointerId: null,
+  touchActive: false,
+  touchMoved: false,
+  touchIdentifier: null,
   roundFocusToken: "",
 };
 
@@ -123,6 +126,10 @@ function isMobileView() {
   return window.matchMedia("(max-width: 760px)").matches;
 }
 
+function usesTouchInput(event) {
+  return event?.pointerType === "touch";
+}
+
 function focusBoardForRound(force = false) {
   if (!isMobileView() || !ui.boardColumn) return;
   const phase = state.room?.round?.phase;
@@ -156,6 +163,7 @@ function renderPathPreview() {
 
 function clearPath() {
   state.selectedPath = [];
+  state.pointerSubmitTap = false;
   renderPathPreview();
   renderSelectedTiles();
   renderPath();
@@ -279,7 +287,8 @@ async function submitCurrentWord() {
 async function api(path, payload) {
   const res = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    cache: "no-store",
     body: JSON.stringify(payload || {}),
   });
   const data = await res.json();
@@ -287,15 +296,8 @@ async function api(path, payload) {
   return data;
 }
 
-function handleTilePointerDown(event, tile) {
-  if (state.room?.round?.phase !== "active") return;
-  event.preventDefault();
-  state.pointerActive = true;
-  state.pointerMoved = false;
-  state.pointerSubmitTap = false;
-  state.pointerId = event.pointerId;
-  if (ui.boardWrap.setPointerCapture) ui.boardWrap.setPointerCapture(event.pointerId);
-
+function applyTileSelection(tile) {
+  if (!tile || state.room?.round?.phase !== "active") return false;
   const r = Number(tile.dataset.r);
   const c = Number(tile.dataset.c);
   const last = state.selectedPath[state.selectedPath.length - 1];
@@ -303,28 +305,48 @@ function handleTilePointerDown(event, tile) {
 
   if (last && last.r === r && last.c === c && currentWord.length >= minLettersRequired()) {
     state.pointerSubmitTap = true;
-    return;
+    return true;
   }
 
   if (!last) {
     startPath(r, c);
-    return;
+    return true;
   }
 
   const existingIndex = state.selectedPath.findIndex((cell) => cell.r === r && cell.c === c);
   if (existingIndex === 0) {
     clearPath();
-    return;
+    return true;
   }
   if (existingIndex >= 0) {
-    trimPathTo(existingIndex);
-    return;
+    return trimPathTo(existingIndex);
   }
   if (!isAdjacent(last, { r, c })) {
     startPath(r, c);
-    return;
+    return true;
   }
-  addToPath(r, c);
+  return addToPath(r, c);
+}
+
+function getTileFromPoint(clientX, clientY) {
+  for (const tile of ui.board.querySelectorAll(".tile")) {
+    const rect = tile.getBoundingClientRect();
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+      return tile;
+    }
+  }
+  return null;
+}
+
+function handleTilePointerDown(event, tile) {
+  if (usesTouchInput(event) || state.room?.round?.phase !== "active") return;
+  event.preventDefault();
+  state.pointerActive = true;
+  state.pointerMoved = false;
+  state.pointerSubmitTap = false;
+  state.pointerId = event.pointerId;
+  if (ui.boardWrap.setPointerCapture) ui.boardWrap.setPointerCapture(event.pointerId);
+  applyTileSelection(tile);
 }
 
 function renderBoard(grid) {
@@ -392,7 +414,7 @@ function hydrateRoom(room) {
   ui.roomCode.textContent = room.roomId;
   ui.playerBadge.textContent = me?.name || "Player";
   ui.roundBadge.textContent = `${room.match.currentRound || room.match.completedRounds}/${room.match.totalRounds}`;
-  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.4.1";
+  ui.ownerLabel.textContent = room.app?.attribution || "attribution: elk-lab-jzion | v1.4.2";
 
   const link = `${location.origin}?room=${encodeURIComponent(room.roomId)}`;
   ui.inviteLink.value = link;
@@ -555,16 +577,15 @@ async function finishPointerTrace() {
 }
 
 function handlePointerMove(event) {
-  if (!state.pointerActive || event.pointerId !== state.pointerId || state.room?.round?.phase !== "active") return;
-  const target = document.elementFromPoint(event.clientX, event.clientY);
-  const tile = target?.closest?.(".tile");
-  if (!tile || !ui.board.contains(tile)) return;
-  const changed = addToPath(Number(tile.dataset.r), Number(tile.dataset.c));
+  if (usesTouchInput(event) || !state.pointerActive || event.pointerId !== state.pointerId || state.room?.round?.phase !== "active") return;
+  const tile = getTileFromPoint(event.clientX, event.clientY);
+  if (!tile) return;
+  const changed = applyTileSelection(tile);
   if (changed) state.pointerMoved = true;
 }
 
 function handlePointerRelease(event) {
-  if (state.pointerId === null || event.pointerId !== state.pointerId) return;
+  if (usesTouchInput(event) || state.pointerId === null || event.pointerId !== state.pointerId) return;
   if (ui.boardWrap.hasPointerCapture?.(event.pointerId)) {
     ui.boardWrap.releasePointerCapture(event.pointerId);
   }
@@ -574,6 +595,7 @@ function handlePointerRelease(event) {
 }
 
 function handlePointerCancel(event) {
+  if (usesTouchInput(event)) return;
   if (state.pointerId !== null && event.pointerId !== state.pointerId) return;
   state.pointerActive = false;
   state.pointerMoved = false;
@@ -581,9 +603,73 @@ function handlePointerCancel(event) {
   state.pointerId = null;
 }
 
+function activeTouchFromList(touchList) {
+  if (state.touchIdentifier === null) return null;
+  for (const touch of touchList) {
+    if (touch.identifier === state.touchIdentifier) return touch;
+  }
+  return null;
+}
+
+function handleTouchStart(event) {
+  if (state.room?.round?.phase !== "active") return;
+  const touch = event.changedTouches[0];
+  if (!touch) return;
+  const tile = event.target.closest?.(".tile") || getTileFromPoint(touch.clientX, touch.clientY);
+  if (!tile) return;
+  event.preventDefault();
+  state.touchActive = true;
+  state.touchMoved = false;
+  state.touchIdentifier = touch.identifier;
+  state.pointerSubmitTap = false;
+  applyTileSelection(tile);
+}
+
+function handleTouchMove(event) {
+  if (!state.touchActive || state.room?.round?.phase !== "active") return;
+  const touch = activeTouchFromList(event.touches);
+  if (!touch) return;
+  event.preventDefault();
+  const tile = getTileFromPoint(touch.clientX, touch.clientY);
+  if (!tile) return;
+  const changed = applyTileSelection(tile);
+  if (changed) state.touchMoved = true;
+}
+
+function handleTouchEnd(event) {
+  if (!state.touchActive) return;
+  const touch = activeTouchFromList(event.changedTouches);
+  if (!touch) return;
+  event.preventDefault();
+  const shouldAutoSubmit = cleanWord(pathWord()).length >= minLettersRequired() && (state.touchMoved || state.pointerSubmitTap);
+  state.touchActive = false;
+  state.touchMoved = false;
+  state.touchIdentifier = null;
+  state.pointerSubmitTap = false;
+  if (shouldAutoSubmit) {
+    submitCurrentWord().catch((err) => {
+      notify(err.message, "error");
+    });
+  }
+}
+
+function handleTouchCancel(event) {
+  if (!state.touchActive) return;
+  const touch = activeTouchFromList(event.changedTouches);
+  if (!touch) return;
+  state.touchActive = false;
+  state.touchMoved = false;
+  state.touchIdentifier = null;
+  state.pointerSubmitTap = false;
+}
+
 ui.boardWrap.addEventListener("pointermove", handlePointerMove, { passive: false });
 ui.boardWrap.addEventListener("pointerup", handlePointerRelease);
 ui.boardWrap.addEventListener("lostpointercapture", handlePointerRelease);
+ui.boardWrap.addEventListener("touchstart", handleTouchStart, { passive: false });
+ui.boardWrap.addEventListener("touchmove", handleTouchMove, { passive: false });
+ui.boardWrap.addEventListener("touchend", handleTouchEnd, { passive: false });
+ui.boardWrap.addEventListener("touchcancel", handleTouchCancel, { passive: false });
 window.addEventListener("pointermove", handlePointerMove, { passive: false });
 window.addEventListener("pointerup", handlePointerRelease, true);
 window.addEventListener("pointercancel", handlePointerCancel, true);
