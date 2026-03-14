@@ -14,6 +14,7 @@ const state = {
   pointerMoved: false,
   pointerSubmitTap: false,
   pointerId: null,
+  pointerType: "",
   touchActive: false,
   touchMoved: false,
   roundFocusToken: "",
@@ -366,22 +367,18 @@ function applyTileSelection(tile, allowTapSubmit = true) {
 }
 
 function getTileFromPoint(clientX, clientY) {
-  for (const tile of ui.board.querySelectorAll(".tile")) {
-    const rect = tile.getBoundingClientRect();
-    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
-      return tile;
-    }
-  }
-  return null;
+  const pointed = document.elementFromPoint(clientX, clientY);
+  return pointed?.closest?.(".tile") || null;
 }
 
 function handleTilePointerDown(event, tile) {
-  if (isTouchMode() || state.room?.round?.phase !== "active") return;
+  if (event.pointerType === "touch" || state.room?.round?.phase !== "active") return;
   event.preventDefault();
   state.pointerActive = true;
   state.pointerMoved = false;
   state.pointerSubmitTap = false;
   state.pointerId = event.pointerId;
+  state.pointerType = event.pointerType || "mouse";
   if (ui.boardWrap.setPointerCapture) ui.boardWrap.setPointerCapture(event.pointerId);
   applyTileSelection(tile, true);
 }
@@ -611,15 +608,15 @@ async function finishPointerTrace() {
   state.pointerMoved = false;
   state.pointerSubmitTap = false;
   state.pointerId = null;
+  state.pointerType = "";
   if (shouldAutoSubmit) {
     await submitCurrentWord();
     return;
   }
-  clearPath();
 }
 
 function handlePointerMove(event) {
-  if (isTouchMode() || !state.pointerActive || event.pointerId !== state.pointerId || state.room?.round?.phase !== "active") return;
+  if (event.pointerType === "touch" || !state.pointerActive || event.pointerId !== state.pointerId || state.room?.round?.phase !== "active") return;
   const tile = getTileFromPoint(event.clientX, event.clientY);
   if (!tile) return;
   const changed = applyTileSelection(tile, true);
@@ -627,7 +624,7 @@ function handlePointerMove(event) {
 }
 
 function handlePointerRelease(event) {
-  if (isTouchMode() || state.pointerId === null || event.pointerId !== state.pointerId) return;
+  if ((event.pointerType || state.pointerType) === "touch" || state.pointerId === null || event.pointerId !== state.pointerId) return;
   if (ui.boardWrap.hasPointerCapture?.(event.pointerId)) {
     ui.boardWrap.releasePointerCapture(event.pointerId);
   }
@@ -637,17 +634,18 @@ function handlePointerRelease(event) {
 }
 
 function handlePointerCancel(event) {
-  if (isTouchMode()) return;
+  if ((event.pointerType || state.pointerType) === "touch") return;
   if (state.pointerId !== null && event.pointerId !== state.pointerId) return;
   state.pointerActive = false;
   state.pointerMoved = false;
   state.pointerSubmitTap = false;
   state.pointerId = null;
+  state.pointerType = "";
   clearPath();
 }
 
 function handleTouchStart(event) {
-  if (!isTouchMode() || state.room?.round?.phase !== "active") return;
+  if (state.room?.round?.phase !== "active") return;
   const touch = event.touches[0] || event.changedTouches[0];
   if (!touch) return;
   const tile = getTileFromPoint(touch.clientX, touch.clientY);
@@ -656,11 +654,11 @@ function handleTouchStart(event) {
   state.touchActive = true;
   state.touchMoved = false;
   state.pointerSubmitTap = false;
-  applyTileSelection(tile, false);
+  applyTileSelection(tile, true);
 }
 
 function handleTouchMove(event) {
-  if (!isTouchMode() || !state.touchActive || state.room?.round?.phase !== "active") return;
+  if (!state.touchActive || state.room?.round?.phase !== "active") return;
   const touch = event.touches[0];
   if (!touch) return;
   event.preventDefault();
@@ -671,7 +669,7 @@ function handleTouchMove(event) {
 }
 
 function handleTouchEnd(event) {
-  if (!isTouchMode() || !state.touchActive) return;
+  if (!state.touchActive) return;
   event.preventDefault();
   const shouldAutoSubmit = cleanWord(pathWord()).length >= minLettersRequired() && (state.touchMoved || state.pointerSubmitTap);
   state.touchActive = false;
@@ -683,11 +681,9 @@ function handleTouchEnd(event) {
     });
     return;
   }
-  clearPath();
 }
 
 function handleTouchCancel() {
-  if (!isTouchMode()) return;
   state.touchActive = false;
   state.touchMoved = false;
   state.pointerSubmitTap = false;
